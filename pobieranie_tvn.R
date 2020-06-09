@@ -13,6 +13,10 @@ install.packages("tidytext")
 install.packages("knitr")
 install.packages("progress")
 install.packages("DT")
+install.packages("ldatuning")
+install.packages("topicmodels")
+install.packages("tidyr")
+install.packages("progress")
 
 library(rvest)
 library(tidyverse)
@@ -27,6 +31,10 @@ library(tidytext)
 library(knitr)
 library(progress)
 library(DT)
+library(ldatuning)
+library(topicmodels)
+library(tidyr)
+library(progress)
 
 path<-getwd()
 setwd(path)
@@ -121,7 +129,7 @@ articles_tvn %>%
   count(year, month, day) %>%
   ggplot() +
   geom_col(aes(make_date(year, month, day), n), fill="lightblue", color = "gray50") +
-  scale_x_date(date_breaks = "1 days", date_labels = "%d.%m.%Y") +
+  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
 
 corpus_tvn<-cbind(articles_tvn$title, articles_tvn$lead, articles_tvn$body)

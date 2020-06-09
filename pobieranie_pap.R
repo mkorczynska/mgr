@@ -16,6 +16,7 @@ install.packages("DT")
 install.packages("ldatuning")
 install.packages("topicmodels")
 install.packages("tidyr")
+install.packages("progress")
 
 library(rvest)
 library(tidyverse)
@@ -33,6 +34,7 @@ library(DT)
 library(ldatuning)
 library(topicmodels)
 library(tidyr)
+library(progress)
 
 path<-getwd()
 setwd(path)
@@ -111,7 +113,7 @@ articles_pap %>%
   count(year, month, day) %>%
   ggplot() +
   geom_col(aes(make_date(year, month, day), n), fill="lightblue", color = "gray50") +
-  scale_x_date(date_breaks = "1 days", date_labels = "%d.%m.%Y") +
+  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
 
 corpus_pap<-cbind(articles_pap$title, articles_pap$lead, articles_pap$body)
