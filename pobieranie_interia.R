@@ -130,7 +130,7 @@ articles_interia %>%
   count(year, month, day) %>%
   ggplot() +
   geom_col(aes(make_date(year, month, day), n), fill="lightblue", color = "gray50") +
-  scale_x_date(date_breaks = "1 days", date_labels = "%d.%m.%Y") +
+  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
 
 corpus_interia<-cbind(articles_interia$title, articles_interia$lead, articles_interia$body)

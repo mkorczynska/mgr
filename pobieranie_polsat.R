@@ -125,6 +125,52 @@ corpus_polsat<-as.data.frame(corpus_polsat)
 colnames(corpus_polsat)<-c("title", "lead", "body")
 corpus_polsat<-unite(corpus_polsat, "text", c("title", "lead", "body"), sep=" ")
 
+#nazwiska
+corpus_polsat<-corpus_polsat%>%
+  mutate(text = gsub("Kidawa-Błońska", "kidawabłońska", text))%>%
+  mutate(text = gsub("Kidawy-Błońskiej", "kidawabłońska", text))%>%
+  mutate(text = gsub("Kidawie-Błońskiej", "kidawabłońska", text))%>%
+  mutate(text = gsub("Kidawę-Błońską", "kidawabłońska", text))%>%
+  mutate(text = gsub("Kidawą-Błońską", "kidawabłońska", text))%>%
+  mutate(text = gsub("Kosiniak-Kamysz", "kosiniakkamysz", text))%>%
+  mutate(text = gsub("Kosiniaka-Kamysza", "kosiniakkamysz", text))%>%
+  mutate(text = gsub("Kosiniakowi-Kamyszowi", "kosiniakkamysz", text))%>%
+  mutate(text = gsub("Kosiniakiem-Kamyszem", "kosiniakkamysz", text))%>%
+  mutate(text = gsub("Kosiniaku-Kamyszu", "kosiniakkamysz", text))%>%
+  mutate(text = gsub("Korwin-Mikke", "korwinmikke", text))%>%
+  mutate(text = gsub("Korwin-Mikkego", "korwinmikke", text))%>%
+  mutate(text = gsub("Korwin-Mikkemu", "korwinmikke", text))%>%
+  mutate(text = gsub("Korwin-Mikkem", "korwinmikke", text))%>%
+  mutate(text = gsub("Liroy-Marzec", "liroymarzec", text))%>%
+  mutate(text = gsub("Liroya-Marca", "liroymarzec", text))%>%
+  mutate(text = gsub("Liroyowi-Marcowi", "liroymarzec", text))%>%
+  mutate(text = gsub("Liroyem-Marcem", "liroymarzec", text))%>%
+  mutate(text = gsub("Liroyu-Marcu", "liroymarzec", text))
+
+#partie
+corpus_polsat<-corpus_polsat%>%
+  mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
+  mutate(text = gsub("Prawa i Sprawiedliwości", "pis", text))%>%
+  mutate(text = gsub("Prawu i Sprawiedliwości", "pis", text))%>%
+  mutate(text = gsub("Prawem i Sprawiedliwością", "pis", text))%>%
+  mutate(text = gsub("Prawie i Sprawiedliwości", "pis", text))%>%
+  mutate(text = gsub("Prawo i Sprawiedliwości", "pis", text))%>%
+  mutate(text = gsub("Koalicja Obywatelska", "ko", text))%>%
+  mutate(text = gsub("Koalicji Obywatelskiej", "ko", text))%>%
+  mutate(text = gsub("Koalicję Obywatelską", "ko", text))%>%
+  mutate(text = gsub("Koalicją Obywatelską", "ko", text))%>%
+  mutate(text = gsub("Koalicjo Obywatelska", "ko", text))%>%
+  mutate(text = gsub("Sojusz Lewicy Demokratycznej", "sld", text))%>%
+  mutate(text = gsub("Sojuszu Lewicy Demokratyczne", "sld", text))%>%
+  mutate(text = gsub("Sojuszowi Lewicy Demokratycznej", "sld", text))%>%
+  mutate(text = gsub("Sojuszem Lewicy Demokratycznej", "sld", text))%>%
+  mutate(text = gsub("Sojuszu Lewicy Demokratycznej", "sld", text))%>%
+  mutate(text = gsub("Polskie Stronnictwo Ludowe", "psl", text))%>%
+  mutate(text = gsub("Polskiego Stronnictwa Ludowego", "psl", text))%>%
+  mutate(text = gsub("Polskiemu Stronnictwu Ludowemu", "psl", text))%>%
+  mutate(text = gsub("Polskim Stronnictwem Ludowym", "psl", text))%>%
+  mutate(text = gsub("Polskim Stronnictwie Ludowym", "psl", text))
+
 corpus_polsat<-tibble(corpus_polsat)
 corpus_polsat<-unlist(corpus_polsat)
 corpus_polsat<-VCorpus(VectorSource(corpus_polsat))
@@ -143,16 +189,25 @@ stem_word <- function(word_to_stem) {
 }
 #----------------------------------------------------------------------------#
 
-
 load(file="corpus_polsat.rda")
+bigcorp<-corpus_polsat
 
 stoplista<-stopwords("pl", source = "stopwords-iso")
 stoplista<-as.data.frame(stoplista)
+
 stem_dictionary <- read_csv2("polimorfologik-2.1.txt", col_names = c("stem", "word", "info"))
+stem_dictionary <- read_csv2("polimorfologik-2.1.txt", col_names = c("stem", "word", "info"))
+stem_dictionary<-add_row(stem_dictionary, stem="kidawabłońska", word="kidawabłońska")
+stem_dictionary<-add_row(stem_dictionary, stem="kosiniakkamysz", word="kosiniakkamysz")
+stem_dictionary<-add_row(stem_dictionary, stem="korwinmikke", word="korwinmikke")
+stem_dictionary<-add_row(stem_dictionary, stem="liroymarzec", word="liroymarzec")
+
+stem_dictionary<-add_row(stem_dictionary, stem="KO", word="KO")
 
 bigcorp = tm_map(bigcorp, content_transformer(tolower))
+bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
 bigcorp = tm_map(bigcorp, removeNumbers)
-bigcorp = tm_map(bigcorp, removePunctuation, preserve_intra_word_dashes=TRUE)
+bigcorp = tm_map(bigcorp, removePunctuation)
 bigcorp = tm_map(bigcorp, removeWords, stopwords("pl", source = "stopwords-iso"))
 bigcorp = tm_map(bigcorp, stripWhitespace)
 

@@ -203,13 +203,12 @@ stem_dictionary<-add_row(stem_dictionary, stem="kosiniakkamysz", word="kosiniakk
 stem_dictionary<-add_row(stem_dictionary, stem="korwinmikke", word="korwinmikke")
 stem_dictionary<-add_row(stem_dictionary, stem="liroymarzec", word="liroymarzec")
 
-
 stem_dictionary<-add_row(stem_dictionary, stem="KO", word="KO")
 
 bigcorp = tm_map(bigcorp, content_transformer(tolower))
 bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
 bigcorp = tm_map(bigcorp, removeNumbers)
-bigcorp = tm_map(bigcorp, removePunctuation, preserve_intra_word_dashes=TRUE)
+bigcorp = tm_map(bigcorp, removePunctuation)
 bigcorp = tm_map(bigcorp, removeWords, stopwords("pl", source = "stopwords-iso"))
 bigcorp = tm_map(bigcorp, stripWhitespace)
 
