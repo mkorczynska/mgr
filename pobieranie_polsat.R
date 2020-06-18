@@ -178,6 +178,7 @@ corpus_polsat<-VCorpus(VectorSource(corpus_polsat))
 save.corpus.to.files(corpus_polsat, filename = "corpus_polsat")
 
 #######################OCZYSZCZANIE KORPUSU###########################################
+#----------------------FUNKCJE-----------------------------------------------#
 #funkcja do usuwania konkretnych slow, wyrazen
 delete_pattern<-content_transformer(function(x, pattern){
   gsub(pattern, "", x)
@@ -196,13 +197,11 @@ stoplista<-stopwords("pl", source = "stopwords-iso")
 stoplista<-as.data.frame(stoplista)
 
 stem_dictionary <- read_csv2("polimorfologik-2.1.txt", col_names = c("stem", "word", "info"))
-stem_dictionary <- read_csv2("polimorfologik-2.1.txt", col_names = c("stem", "word", "info"))
 stem_dictionary<-add_row(stem_dictionary, stem="kidawabłońska", word="kidawabłońska")
 stem_dictionary<-add_row(stem_dictionary, stem="kosiniakkamysz", word="kosiniakkamysz")
 stem_dictionary<-add_row(stem_dictionary, stem="korwinmikke", word="korwinmikke")
 stem_dictionary<-add_row(stem_dictionary, stem="liroymarzec", word="liroymarzec")
-
-stem_dictionary<-add_row(stem_dictionary, stem="KO", word="KO")
+stem_dictionary<-add_row(stem_dictionary, stem="ko", word="ko")
 
 bigcorp = tm_map(bigcorp, content_transformer(tolower))
 bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
@@ -221,12 +220,10 @@ stem_dictionary <- stem_dictionary %>%
 corp_data<-data.frame(text = sapply(bigcorp, as.character), stringsAsFactors = FALSE)
 datatable(corp_data)
 
-install.packages("progress")
-library(progress)
-
 #przeksztalcanie wyrazow na formy podstawowe
 articles<-data.frame()
-pb<-progress_bar$new(total = 100)
+pb<-progress_bar$new(format = "[:bar] :percent eta: :eta elap. :elapsedfull",
+                     total = nrow(corp_data)+1)
 for(i in 1:nrow(corp_data)){
   pb$tick()
   words_in_article<-tibble(corp_data[i,1])
@@ -247,9 +244,20 @@ for(i in 1:nrow(corp_data)){
 }
 
 data_tib_v<-unlist(articles)
-corp<-VCorpus(VectorSource(data_tib_v))
+corpus_polsat<-VCorpus(VectorSource(data_tib_v))
 
-dtm = DocumentTermMatrix(corp)
+corpus_polsat = tm_map(corpus_polsat, content_transformer(tolower))
+corpus_polsat = tm_map(corpus_polsat, removeWords, stopwords("pl", source = "stopwords-iso"))
+corpus_polsat = tm_map(corpus_polsat, stripWhitespace)
+
+save.corpus.to.files(corpus_polsat, filename = "corpus_polsat_c_s")
+#-----------------------------------------------------------------
+#wczytanie korpusu po oczyszczeniu
+load(file="corpus_polsat_c_s.rda")
+corpus_polsat<-bigcorp
+
+#macierz dokument-term
+dtm = DocumentTermMatrix(corpus_polsat)
 inspect(dtm)
 dtm = removeSparseTerms(dtm, 0.9)
 
@@ -262,3 +270,138 @@ freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
 word_freq <- data.frame(freq=freq)
+datatable(word_freq)
+########################################LDA#############################################
+#wybor liczby tematow w lda
+results_1 <- FindTopicsNumber(
+  dtm,
+  topics = seq(from = 2, to = 10, by = 2),
+  metrics = c("Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  mc.cores = 4L,
+  verbose = TRUE
+)
+
+results_2 <- FindTopicsNumber(
+  dtm,
+  topics = seq(from = 2, to = 10, by = 2),
+  metrics = c("Griffiths2004", "CaoJuan2009"),
+  method = "Gibbs",
+  mc.cores = 4L,
+  verbose = TRUE
+)
+
+#wykres pozwalajacy wybrac liczbe tematow
+FindTopicsNumber_plot(results_1)
+FindTopicsNumber_plot(results_2)
+
+datatable(results_100)
+
+#lda
+lda_20_2 <- LDA(dtm, k = 15)
+#zapisanie wspolczynnikow beta dla kazdego slowa i tematu
+topics_20 <- tidy(lda_20_2, matrix = "beta")
+
+#wykres slow dla poszczegolnych tematow
+topics_20 %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(beta) %>%
+  mutate(term = factor(term, levels = unique(term))) %>%
+  ggplot() +
+  geom_col(aes(term, beta, fill = factor(topic)), color = "gray50", show.legend = FALSE) +
+  facet_wrap(~topic, scales = "free_y") +
+  coord_flip()
+
+#topowe slowa w kazdym z tematow
+ap_top_terms <- topics_20 %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+#wykres topowych slow ze wspolczynnikami
+ap_top_terms %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+#beta spread
+beta_spread <- topics_20 %>%
+  mutate(topic = paste0("topic", topic)) %>%
+  spread(topic, beta) %>%
+  filter(topic1 > .001 | topic2 > .001) %>%
+  mutate(log_ratio = log2(topic2 / topic1))
+
+#wykres dla beta spread
+beta_spread %>%
+  group_by(direction = log_ratio > 0) %>%
+  top_n(15, abs(log_ratio)) %>%
+  ungroup() %>%
+  mutate(term = reorder(term, log_ratio)) %>%
+  ggplot(aes(term, log_ratio)) +
+  geom_col() +
+  labs(y = "Log2 ratio of beta in topic 2 / topic 1") +
+  coord_flip()
+
+########################################ANLIZA SENTYMENTU###############################
+articles<-data.frame(text = sapply(bigcorp, as.character), stringsAsFactors = FALSE)
+
+lead_words <- articles_pap %>%
+  unnest_tokens(word, lead, token = "words")
+
+pl_words_sentiment <- read_csv("pl_words.csv")
+#pl_words_sentiment <- pl_words_sentiment[, 2:8]
+
+text_words_sentiment <- inner_join(lead_words %>%
+                                     select(word, year, month, day),
+                                   pl_words_sentiment,
+                                   by = c("word" = "word"))
+
+text_words_sentiment %>%
+  count(year, month, day, category) %>%
+  ungroup() %>%
+  group_by(year, month, day) %>%
+  mutate(p = 100*n/sum(n)) %>%
+  ungroup() %>%
+  filter(!category %in% c("N", "U")) %>%
+  mutate(category = case_when(.$category == "A" ~ "Anger",
+                              .$category == "H" ~ "Happiness",
+                              .$category == "S" ~ "Sadness",
+                              .$category == "D" ~ "Disgust",
+                              .$category == "F" ~ "Fear")) %>%
+  ggplot() +
+  geom_col(aes(make_date(year, month, day), p, fill=category), show.legend = FALSE) +
+  facet_wrap(~category, ncol=1)
+
+text_words_sentiment %>%
+  select(-word, -category) %>%
+  gather(key = sent_category, value = score,
+         mean.Happiness, mean.Anger, mean.Sadness, mean.Fear, mean.Disgust) %>%
+  ggplot() +
+  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
+              show.legend = FALSE) +
+  facet_wrap(~sent_category, scale = "free_y", ncol=1)
+
+# lista artykułów z wybranymi słowami w lidzie
+art_list <- lead_words %>%
+  filter(word %in% c("pis", "platforma", "nowoczesna",
+                     "kaczyński", "tusk", "duda", "szydło")) %>%
+  select(url, word) %>%
+  distinct()
+
+# sentyment dla słow z treści
+# poprzenio nie było kolumny url - stąd jeszcze raz łączymy słowa ze słownikiem sentymentu
+text_words_sentiment <- inner_join(lead_words %>%
+                                     select(word, year, month, day, url),
+                                   pl_words_sentiment,
+                                   by = c("word" = "word")) %>%
+  # łączymy dane o sentymencie z listą artykułów i słowami z leadu
+  left_join(art_list, by = c("url" = "url")) %>%
+  filter(!is.na(word)) %>%
+  # pivot tabelki
+  gather(key = sent_category, value = score,
+         mean.Happiness, mean.Anger, mean.Sadness, mean.Fear, mean.Disgust)

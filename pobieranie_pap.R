@@ -196,9 +196,7 @@ stem_dictionary<-add_row(stem_dictionary, stem="kidawabłońska", word="kidawab�
 stem_dictionary<-add_row(stem_dictionary, stem="kosiniakkamysz", word="kosiniakkamysz")
 stem_dictionary<-add_row(stem_dictionary, stem="korwinmikke", word="korwinmikke")
 stem_dictionary<-add_row(stem_dictionary, stem="liroymarzec", word="liroymarzec")
-
-stem_dictionary<-add_row(stem_dictionary, stem="KO", word="KO")
-
+stem_dictionary<-add_row(stem_dictionary, stem="ko", word="ko")
 
 bigcorp = tm_map(bigcorp, content_transformer(tolower))
 bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
@@ -243,11 +241,22 @@ for(i in 1:nrow(corp_data)){
 
 #przeksztalcenie do postaci korpusu
 data_tib_v<-unlist(articles)
-corp<-VCorpus(VectorSource(data_tib_v))
+corpus_pap<-VCorpus(VectorSource(data_tib_v))
 
-dtm = DocumentTermMatrix(corp)
+corpus_pap = tm_map(corpus_pap, content_transformer(tolower))
+corpus_pap = tm_map(corpus_pap, removeWords, stopwords("pl", source = "stopwords-iso"))
+corpus_pap = tm_map(corpus_pap, stripWhitespace)
+
+save.corpus.to.files(corpus_gazeta, filename = "corpus_pap_c_s")
+#-----------------------------------------------------------------
+#wczytanie korpusu po oczyszczeniu
+load(file="corpus_pap_c_s.rda")
+corpus_pap<-bigcorp
+
+#macierz dokument-term
+dtm = DocumentTermMatrix(corpus_pap)
 inspect(dtm)
-dtm = removeSparseTerms(dtm, 0.9)
+dtm = removeSparseTerms(dtm, 0.99)
 
 freq <- colSums(as.matrix(dtm))
 ord <- order(freq)   
@@ -258,25 +267,35 @@ freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
 word_freq <- data.frame(freq=freq)
-
+datatable(word_freq)
 ########################################LDA#############################################
 #wybor liczby tematow w lda
-results_100 <- FindTopicsNumber(
+results_1 <- FindTopicsNumber(
   dtm,
   topics = seq(from = 2, to = 10, by = 2),
-  metrics = c("Griffiths2004"),
+  metrics = c("Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  mc.cores = 4L,
+  verbose = TRUE
+)
+
+results_2 <- FindTopicsNumber(
+  dtm,
+  topics = seq(from = 2, to = 10, by = 2),
+  metrics = c("Griffiths2004", "CaoJuan2009"),
   method = "Gibbs",
   mc.cores = 4L,
   verbose = TRUE
 )
 
 #wykres pozwalajacy wybrac liczbe tematow
-FindTopicsNumber_plot(results_100)
+FindTopicsNumber_plot(results_1)
+FindTopicsNumber_plot(results_2)
 
 datatable(results_100)
 
 #lda
-lda_20_2 <- LDA(dtm, k = 6)
+lda_20_2 <- LDA(dtm, k = 15)
 #zapisanie wspolczynnikow beta dla kazdego slowa i tematu
 topics_20 <- tidy(lda_20_2, matrix = "beta")
 

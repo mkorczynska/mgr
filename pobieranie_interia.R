@@ -138,6 +138,52 @@ corpus_interia<-as.data.frame(corpus_interia)
 colnames(corpus_interia)<-c("title", "lead", "body")
 corpus_interia<-unite(corpus_interia, "text", c("title", "lead", "body"), sep=" ")
 
+#nazwiska
+corpus_interia<-corpus_interia%>%
+  mutate(text = gsub("Kidawa-Błońska", "kidawabłońska", text))%>%
+  mutate(text = gsub("Kidawy-Błońskiej", "kidawabłońska", text))%>%
+  mutate(text = gsub("Kidawie-Błońskiej", "kidawabłońska", text))%>%
+  mutate(text = gsub("Kidawę-Błońską", "kidawabłońska", text))%>%
+  mutate(text = gsub("Kidawą-Błońską", "kidawabłońska", text))%>%
+  mutate(text = gsub("Kosiniak-Kamysz", "kosiniakkamysz", text))%>%
+  mutate(text = gsub("Kosiniaka-Kamysza", "kosiniakkamysz", text))%>%
+  mutate(text = gsub("Kosiniakowi-Kamyszowi", "kosiniakkamysz", text))%>%
+  mutate(text = gsub("Kosiniakiem-Kamyszem", "kosiniakkamysz", text))%>%
+  mutate(text = gsub("Kosiniaku-Kamyszu", "kosiniakkamysz", text))%>%
+  mutate(text = gsub("Korwin-Mikke", "korwinmikke", text))%>%
+  mutate(text = gsub("Korwin-Mikkego", "korwinmikke", text))%>%
+  mutate(text = gsub("Korwin-Mikkemu", "korwinmikke", text))%>%
+  mutate(text = gsub("Korwin-Mikkem", "korwinmikke", text))%>%
+  mutate(text = gsub("Liroy-Marzec", "liroymarzec", text))%>%
+  mutate(text = gsub("Liroya-Marca", "liroymarzec", text))%>%
+  mutate(text = gsub("Liroyowi-Marcowi", "liroymarzec", text))%>%
+  mutate(text = gsub("Liroyem-Marcem", "liroymarzec", text))%>%
+  mutate(text = gsub("Liroyu-Marcu", "liroymarzec", text))
+
+#partie
+corpus_interia<-corpus_interia%>%
+  mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
+  mutate(text = gsub("Prawa i Sprawiedliwości", "pis", text))%>%
+  mutate(text = gsub("Prawu i Sprawiedliwości", "pis", text))%>%
+  mutate(text = gsub("Prawem i Sprawiedliwością", "pis", text))%>%
+  mutate(text = gsub("Prawie i Sprawiedliwości", "pis", text))%>%
+  mutate(text = gsub("Prawo i Sprawiedliwości", "pis", text))%>%
+  mutate(text = gsub("Koalicja Obywatelska", "ko", text))%>%
+  mutate(text = gsub("Koalicji Obywatelskiej", "ko", text))%>%
+  mutate(text = gsub("Koalicję Obywatelską", "ko", text))%>%
+  mutate(text = gsub("Koalicją Obywatelską", "ko", text))%>%
+  mutate(text = gsub("Koalicjo Obywatelska", "ko", text))%>%
+  mutate(text = gsub("Sojusz Lewicy Demokratycznej", "sld", text))%>%
+  mutate(text = gsub("Sojuszu Lewicy Demokratyczne", "sld", text))%>%
+  mutate(text = gsub("Sojuszowi Lewicy Demokratycznej", "sld", text))%>%
+  mutate(text = gsub("Sojuszem Lewicy Demokratycznej", "sld", text))%>%
+  mutate(text = gsub("Sojuszu Lewicy Demokratycznej", "sld", text))%>%
+  mutate(text = gsub("Polskie Stronnictwo Ludowe", "psl", text))%>%
+  mutate(text = gsub("Polskiego Stronnictwa Ludowego", "psl", text))%>%
+  mutate(text = gsub("Polskiemu Stronnictwu Ludowemu", "psl", text))%>%
+  mutate(text = gsub("Polskim Stronnictwem Ludowym", "psl", text))%>%
+  mutate(text = gsub("Polskim Stronnictwie Ludowym", "psl", text))
+
 corpus_interia<-tibble(corpus_interia)
 corpus_interia<-unlist(corpus_interia)
 corpus_interia<-VCorpus(VectorSource(corpus_interia))
@@ -145,6 +191,7 @@ corpus_interia<-VCorpus(VectorSource(corpus_interia))
 save.corpus.to.files(corpus_interia, filename = "corpus_interia")
 
 #######################OCZYSZCZANIE KORPUSU###########################################
+#----------------------FUNKCJE-----------------------------------------------#
 #funkcja do usuwania konkretnych slow, wyrazen
 delete_pattern<-content_transformer(function(x, pattern){
   gsub(pattern, "", x)

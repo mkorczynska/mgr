@@ -180,6 +180,7 @@ corpus_gazeta<-VCorpus(VectorSource(corpus_gazeta))
 save.corpus.to.files(corpus_gazeta, filename = "corpus_gazeta")
 
 #######################OCZYSZCZANIE KORPUSU###########################################
+#----------------------FUNKCJE-----------------------------------------------#
 #funkcja do usuwania konkretnych slow, wyrazen
 delete_pattern<-content_transformer(function(x, pattern){
   gsub(pattern, "", x)
@@ -190,7 +191,6 @@ stem_word <- function(word_to_stem) {
   stem_dictionary %>% filter(word == word_to_stem) %>% .$stem %>% .[1]
 }
 #----------------------------------------------------------------------------#
-
 load(file="corpus_gazeta.rda")
 bigcorp<-corpus_gazeta
 
@@ -202,8 +202,7 @@ stem_dictionary<-add_row(stem_dictionary, stem="kidawabłońska", word="kidawab�
 stem_dictionary<-add_row(stem_dictionary, stem="kosiniakkamysz", word="kosiniakkamysz")
 stem_dictionary<-add_row(stem_dictionary, stem="korwinmikke", word="korwinmikke")
 stem_dictionary<-add_row(stem_dictionary, stem="liroymarzec", word="liroymarzec")
-
-stem_dictionary<-add_row(stem_dictionary, stem="KO", word="KO")
+stem_dictionary<-add_row(stem_dictionary, stem="ko", word="ko")
 
 bigcorp = tm_map(bigcorp, content_transformer(tolower))
 bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
@@ -254,10 +253,10 @@ corpus_gazeta = tm_map(corpus_gazeta, content_transformer(tolower))
 corpus_gazeta = tm_map(corpus_gazeta, removeWords, stopwords("pl", source = "stopwords-iso"))
 corpus_gazeta = tm_map(corpus_gazeta, stripWhitespace)
 
-save.corpus.to.files(corpus_gazeta, filename = "corpus_gazeta_c")
-
+save.corpus.to.files(corpus_gazeta, filename = "corpus_gazeta_c_s")
+#-----------------------------------------------------------------
 #wczytanie korpusu po oczyszczeniu
-load(file="corpus_gazeta_c.rda")
+load(file="corpus_gazeta_c_s.rda")
 corpus_gazeta<-bigcorp
 
 #macierz dokument-term
@@ -277,17 +276,27 @@ word_freq <- data.frame(freq=freq)
 
 ########################################LDA#############################################
 #wybor liczby tematow w lda
-results_100 <- FindTopicsNumber(
+results_1 <- FindTopicsNumber(
   dtm,
   topics = seq(from = 2, to = 10, by = 2),
-  metrics = c("Griffiths2004"),
+  metrics = c("Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  mc.cores = 4L,
+  verbose = TRUE
+)
+
+results_2 <- FindTopicsNumber(
+  dtm,
+  topics = seq(from = 2, to = 10, by = 2),
+  metrics = c("Griffiths2004", "CaoJuan2009"),
   method = "Gibbs",
   mc.cores = 4L,
   verbose = TRUE
 )
 
 #wykres pozwalajacy wybrac liczbe tematow
-FindTopicsNumber_plot(results_100)
+FindTopicsNumber_plot(results_1)
+FindTopicsNumber_plot(results_2)
 
 datatable(results_100)
 
@@ -340,3 +349,62 @@ beta_spread %>%
   geom_col() +
   labs(y = "Log2 ratio of beta in topic 2 / topic 1") +
   coord_flip()
+
+########################################ANLIZA SENTYMENTU###############################
+articles<-data.frame(text = sapply(bigcorp, as.character), stringsAsFactors = FALSE)
+
+lead_words <- articles_pap %>%
+  unnest_tokens(word, lead, token = "words")
+
+pl_words_sentiment <- read_csv("pl_words.csv")
+#pl_words_sentiment <- pl_words_sentiment[, 2:8]
+
+text_words_sentiment <- inner_join(lead_words %>%
+                                     select(word, year, month, day),
+                                   pl_words_sentiment,
+                                   by = c("word" = "word"))
+
+text_words_sentiment %>%
+  count(year, month, day, category) %>%
+  ungroup() %>%
+  group_by(year, month, day) %>%
+  mutate(p = 100*n/sum(n)) %>%
+  ungroup() %>%
+  filter(!category %in% c("N", "U")) %>%
+  mutate(category = case_when(.$category == "A" ~ "Anger",
+                              .$category == "H" ~ "Happiness",
+                              .$category == "S" ~ "Sadness",
+                              .$category == "D" ~ "Disgust",
+                              .$category == "F" ~ "Fear")) %>%
+  ggplot() +
+  geom_col(aes(make_date(year, month, day), p, fill=category), show.legend = FALSE) +
+  facet_wrap(~category, ncol=1)
+
+text_words_sentiment %>%
+  select(-word, -category) %>%
+  gather(key = sent_category, value = score,
+         mean.Happiness, mean.Anger, mean.Sadness, mean.Fear, mean.Disgust) %>%
+  ggplot() +
+  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
+              show.legend = FALSE) +
+  facet_wrap(~sent_category, scale = "free_y", ncol=1)
+
+# lista artykułów z wybranymi słowami w lidzie
+art_list <- lead_words %>%
+  filter(word %in% c("pis", "platforma", "nowoczesna",
+                     "kaczyński", "tusk", "duda", "szydło")) %>%
+  select(url, word) %>%
+  distinct()
+
+# sentyment dla słow z treści
+# poprzenio nie było kolumny url - stąd jeszcze raz łączymy słowa ze słownikiem sentymentu
+text_words_sentiment <- inner_join(lead_words %>%
+                                     select(word, year, month, day, url),
+                                   pl_words_sentiment,
+                                   by = c("word" = "word")) %>%
+  # łączymy dane o sentymencie z listą artykułów i słowami z leadu
+  left_join(art_list, by = c("url" = "url")) %>%
+  filter(!is.na(word)) %>%
+  # pivot tabelki
+  gather(key = sent_category, value = score,
+         mean.Happiness, mean.Anger, mean.Sadness, mean.Fear, mean.Disgust)
