@@ -273,12 +273,31 @@ freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
 word_freq <- data.frame(freq=freq)
+datatable(word_freq)
 
+#usuniecie wyrazow zwiazanych z tematem
+corpus_gazeta = tm_map(corpus_gazeta, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
+
+#macierz dokument-term (NOWA)
+dtm = DocumentTermMatrix(corpus_gazeta)
+inspect(dtm)
+dtm = removeSparseTerms(dtm, 0.99)
+
+freq <- colSums(as.matrix(dtm))
+ord <- order(freq)   
+
+#czestosc slow
+freq <- colSums(as.matrix(dtm))
+freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+
+#ramka ze slowami i ich frekwencja
+word_freq <- data.frame(freq=freq)
+datatable(word_freq)
 ########################################LDA#############################################
 #wybor liczby tematow w lda
 results_1 <- FindTopicsNumber(
   dtm,
-  topics = seq(from = 2, to = 10, by = 2),
+  topics = seq(from = 2, to = 20, by = 2),
   metrics = c("Arun2010", "Deveaud2014"),
   method = "Gibbs",
   mc.cores = 4L,
@@ -287,7 +306,7 @@ results_1 <- FindTopicsNumber(
 
 results_2 <- FindTopicsNumber(
   dtm,
-  topics = seq(from = 2, to = 10, by = 2),
+  topics = seq(from = 2, to = 20, by = 2),
   metrics = c("Griffiths2004", "CaoJuan2009"),
   method = "Gibbs",
   mc.cores = 4L,
@@ -298,15 +317,15 @@ results_2 <- FindTopicsNumber(
 FindTopicsNumber_plot(results_1)
 FindTopicsNumber_plot(results_2)
 
-datatable(results_100)
+datatable(results_1)
 
 #lda
-lda_20_2 <- LDA(dtm, k = 15)
+lda <- LDA(dtm, k = 14)
 #zapisanie wspolczynnikow beta dla kazdego slowa i tematu
-topics_20 <- tidy(lda_20_2, matrix = "beta")
+topics <- tidy(lda, matrix = "beta")
 
 #wykres slow dla poszczegolnych tematow
-topics_20 %>%
+topics %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
   ungroup() %>%
@@ -318,7 +337,7 @@ topics_20 %>%
   coord_flip()
 
 #topowe slowa w kazdym z tematow
-ap_top_terms <- topics_20 %>%
+ap_top_terms <- topics %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
   ungroup() %>%
@@ -333,7 +352,7 @@ ap_top_terms %>%
   coord_flip()
 
 #beta spread
-beta_spread <- topics_20 %>%
+beta_spread <- topics %>%
   mutate(topic = paste0("topic", topic)) %>%
   spread(topic, beta) %>%
   filter(topic1 > .001 | topic2 > .001) %>%
@@ -353,7 +372,14 @@ beta_spread %>%
 ########################################ANLIZA SENTYMENTU###############################
 articles<-data.frame(text = sapply(bigcorp, as.character), stringsAsFactors = FALSE)
 
-lead_words <- articles_pap %>%
+date_cols<-articles_gazeta%>%
+  select(year, month, day)
+
+corp<-data.frame(text = sapply(corpus_gazeta, as.character), stringsAsFactors = FALSE)
+
+corp<-cbind(corp, date_cols)
+
+lead_words <- corp %>%
   unnest_tokens(word, lead, token = "words")
 
 pl_words_sentiment <- read_csv("pl_words.csv")
@@ -363,6 +389,9 @@ text_words_sentiment <- inner_join(lead_words %>%
                                      select(word, year, month, day),
                                    pl_words_sentiment,
                                    by = c("word" = "word"))
+
+text_words_sentiment%>%
+  mutate(date=make_date(year, month, day))
 
 text_words_sentiment %>%
   count(year, month, day, category) %>%
