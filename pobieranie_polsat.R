@@ -271,6 +271,49 @@ freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
 #ramka ze slowami i ich frekwencja
 word_freq <- data.frame(freq=freq)
 datatable(word_freq)
+
+#usuniecie wyrazow zwiazanych z tematem
+corpus_polsat = tm_map(corpus_polsat, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
+
+#macierz dokument-term
+dtm = DocumentTermMatrix(corpus_polsat)
+inspect(dtm)
+dtm = removeSparseTerms(dtm, 0.99)
+
+freq <- colSums(as.matrix(dtm))
+ord <- order(freq)   
+
+#czestosc slow
+freq <- colSums(as.matrix(dtm))
+freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+
+#ramka ze slowami i ich frekwencja
+word_freq <- data.frame(freq=freq)
+datatable(word_freq)
+
+#-----
+articles_per_day <- articles_polsat %>%
+  count(year, month, day) %>%
+  ungroup() %>%
+  rename(n_arts = n)
+
+body_words %>%
+  filter(word_s %in% c("pis", "ko", "lewica", "psl")) %>%
+  count(year, month, day, word_s) %>%
+  ungroup() %>%
+  rename(n_words = n) %>%
+  left_join(articles_per_day, by = c("year" = "year", "month" = "month", "day"="day")) %>%
+  # przeskalowanie danych o liczbie słów
+  mutate(n_words_plot = n_words) %>%
+  mutate(date = make_date(year, month, day)) %>%
+  ggplot() +
+  # bar = liczba tesktów
+  geom_bar(data = articles_per_day, aes(make_date(year, month, day), n_arts),
+           stat="identity",
+           fill = "gray80") +
+  # line = liczba słów
+  geom_point(aes(date, n_words_plot, color = word_s), size = 2) +
+  theme(legend.position = "bottom")
 ########################################LDA#############################################
 #wybor liczby tematow w lda
 results_1 <- FindTopicsNumber(
@@ -348,18 +391,28 @@ beta_spread %>%
   coord_flip()
 
 ########################################ANLIZA SENTYMENTU###############################
-articles<-data.frame(text = sapply(bigcorp, as.character), stringsAsFactors = FALSE)
+#articles<-data.frame(text = sapply(bigcorp, as.character), stringsAsFactors = FALSE)
 
-lead_words <- articles_pap %>%
-  unnest_tokens(word, lead, token = "words")
+some_cols<-articles_polsat%>%
+  select(year, month, day, url)
+
+corp<-data.frame(text = sapply(corpus_polsat, as.character), stringsAsFactors = FALSE)
+
+corp<-cbind(corp, some_cols)
+
+body_words <- corp %>%
+  unnest_tokens(word_s, text, token = "words")
 
 pl_words_sentiment <- read_csv("pl_words.csv")
 #pl_words_sentiment <- pl_words_sentiment[, 2:8]
 
-text_words_sentiment <- inner_join(lead_words %>%
-                                     select(word, year, month, day),
+text_words_sentiment <- inner_join(body_words %>%
+                                     select(word_s, year, month, day),
                                    pl_words_sentiment,
-                                   by = c("word" = "word"))
+                                   by = c("word_s" = "word"))
+
+text_words_sentiment<-text_words_sentiment%>%
+  mutate(date=make_date(year, month, day))
 
 text_words_sentiment %>%
   count(year, month, day, category) %>%
@@ -378,30 +431,41 @@ text_words_sentiment %>%
   facet_wrap(~category, ncol=1)
 
 text_words_sentiment %>%
-  select(-word, -category) %>%
+  select(-word_s, -category) %>%
   gather(key = sent_category, value = score,
-         mean.Happiness, mean.Anger, mean.Sadness, mean.Fear, mean.Disgust) %>%
+         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`) %>%
   ggplot() +
   geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
               show.legend = FALSE) +
   facet_wrap(~sent_category, scale = "free_y", ncol=1)
 
 # lista artykułów z wybranymi słowami w lidzie
-art_list <- lead_words %>%
-  filter(word %in% c("pis", "platforma", "nowoczesna",
-                     "kaczyński", "tusk", "duda", "szydło")) %>%
-  select(url, word) %>%
+art_list <- body_words %>%
+  filter(word_s %in% c("pis", "ko", "lewica", "psl")) %>%
+  select(url, word_s) %>%
   distinct()
 
-# sentyment dla słow z treści
-# poprzenio nie było kolumny url - stąd jeszcze raz łączymy słowa ze słownikiem sentymentu
-text_words_sentiment <- inner_join(lead_words %>%
-                                     select(word, year, month, day, url),
-                                   pl_words_sentiment,
-                                   by = c("word" = "word")) %>%
+
+body_sentiment <- inner_join(body_words %>% select(word_s, year, month, day, url),
+                             pl_words_sentiment,
+                             by = c("word_s" = "word")) %>%
   # łączymy dane o sentymencie z listą artykułów i słowami z leadu
   left_join(art_list, by = c("url" = "url")) %>%
-  filter(!is.na(word)) %>%
+  filter(!is.na(word_s.y)) %>%
   # pivot tabelki
   gather(key = sent_category, value = score,
-         mean.Happiness, mean.Anger, mean.Sadness, mean.Fear, mean.Disgust)
+         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`)
+
+body_sentiment %>%
+  ggplot() +
+  geom_boxplot(aes(sent_category, score, color = word_s.y)) +
+  theme(legend.position = "bottom")
+
+
+body_sentiment %>%
+  filter(word_s.y != "pis") %>% # za mało jest tekstów, wychodzi pusty wykres
+  ggplot() +
+  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
+              se = FALSE) +
+  facet_wrap(~word_s.y, ncol = 3) +
+  theme(legend.position = "bottom")
