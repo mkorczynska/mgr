@@ -112,14 +112,6 @@ articles_interia<-articles_interia%>%
   filter(date>="2019-08-09")%>%
   filter(date<"2019-10-12")
 
-articles_interia<-articles_interia%>%
-  mutate(body = gsub("var Criteo.*Reklama", "", body))%>%
-  mutate(body = gsub("CDATA.*block", "", body ))%>%
-  mutate(body = gsub("Zdjęcie.*Reporter", "", body))%>%
-  mutate(body = gsub("Zdjęcie.*East News", "", body))%>%
-  mutate(body = gsub("Zdjęcie.*PAP", "", body))%>%
-  mutate(body = gsub("Wideo.*srcsign", "", body))
-
 articles_interia <- articles_interia %>%
   mutate(day = day(date),
          month = month(date),
@@ -132,6 +124,14 @@ articles_interia %>%
   geom_col(aes(make_date(year, month, day), n), fill="lightblue", color = "gray50") +
   scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
+
+articles_interia<-articles_interia%>%
+  mutate(body = gsub("var Criteo.*Reklama", "", body))%>%
+  mutate(body = gsub("CDATA.*block", "", body ))%>%
+  mutate(body = gsub("Zdjęcie.*Reporter", "", body))%>%
+  mutate(body = gsub("Zdjęcie.*East News", "", body))%>%
+  mutate(body = gsub("Zdjęcie.*PAP", "", body))%>%
+  mutate(body = gsub("Wideo.*srcsign", "", body))
 
 corpus_interia<-cbind(articles_interia$title, articles_interia$lead, articles_interia$body)
 corpus_interia<-as.data.frame(corpus_interia)

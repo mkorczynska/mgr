@@ -103,10 +103,6 @@ articles_polsat<-articles_polsat%>%
   filter(date>="2019-08-09")%>%
   filter(date<"2019-10-12")
 
-articles_polsat<-articles_polsat%>%
-  mutate(body = gsub("Twoja przeglądarka nie wspiera.*videoPlayer", "", body))%>%
-  mutate(body = gsub("WIDEO.*'", "", body))
-
 articles_polsat <- articles_polsat %>%
   mutate(day = day(date),
          month = month(date),
@@ -119,6 +115,10 @@ articles_polsat %>%
   geom_col(aes(make_date(year, month, day), n), fill="lightblue", color = "gray50") +
   scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
+
+articles_polsat<-articles_polsat%>%
+  mutate(body = gsub("Twoja przeglądarka nie wspiera.*videoPlayer", "", body))%>%
+  mutate(body = gsub("WIDEO.*'", "", body))
 
 corpus_polsat<-cbind(articles_polsat$title, articles_polsat$lead, articles_polsat$body)
 corpus_polsat<-as.data.frame(corpus_polsat)

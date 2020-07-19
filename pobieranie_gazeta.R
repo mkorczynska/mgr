@@ -1,5 +1,6 @@
-###POBIERANIE ARTYKULOW---------------------------------------------------------------
-###BIBLIOTEKI-------------------------------------------------------------------------
+######################################################################################
+#--BIBLIOTEKI-------------------------------------------------------------------------
+######################################################################################
 install.packages("rvest")
 install.packages("tidyverse")
 install.packages("stringr")
@@ -36,10 +37,12 @@ library(topicmodels)
 library(tidyr)
 library(progress)
 
-
 path<-getwd()
 setwd(path)
-###-----------------------------------------------------------------------------------
+
+######################################################################################
+#--ZAPISYWANIE TEKSTOW----------------------------------------------------------------
+######################################################################################
 url_gazeta_1 <-"https://wiadomosci.gazeta.pl/wiadomosci/0,143907.html?str="
 url_gazeta_2 <- "_19845770"
 
@@ -92,7 +95,9 @@ articles_gazeta <- gazeta_links %>%
 
 saveRDS(articles_gazeta, file = "articles_gazeta.RDS")
 
-##############################UTWORZENIE KORPUSU##############################################
+######################################################################################
+#--UTWORZENIE KORPUSU-----------------------------------------------------------------
+######################################################################################
 articles_gazeta <- readRDS("articles_gazeta.RDS")
 datatable(articles_gazeta)
 
@@ -172,14 +177,16 @@ corpus_gazeta<-corpus_gazeta%>%
   mutate(text = gsub("Polskim Stronnictwem Ludowym", "psl", text))%>%
   mutate(text = gsub("Polskim Stronnictwie Ludowym", "psl", text))
 
-
 corpus_gazeta<-tibble(corpus_gazeta)
 corpus_gazeta<-unlist(corpus_gazeta)
 corpus_gazeta<-VCorpus(VectorSource(corpus_gazeta))
 
 save.corpus.to.files(corpus_gazeta, filename = "corpus_gazeta")
 
-#######################OCZYSZCZANIE KORPUSU###########################################
+######################################################################################
+#--OCZYSZCZANIE KORPUSU---------------------------------------------------------------
+######################################################################################
+
 #----------------------FUNKCJE-----------------------------------------------#
 #funkcja do usuwania konkretnych slow, wyrazen
 delete_pattern<-content_transformer(function(x, pattern){
@@ -254,7 +261,10 @@ corpus_gazeta = tm_map(corpus_gazeta, removeWords, stopwords("pl", source = "sto
 corpus_gazeta = tm_map(corpus_gazeta, stripWhitespace)
 
 save.corpus.to.files(corpus_gazeta, filename = "corpus_gazeta_c_s")
-#-----------------------------------------------------------------
+
+######################################################################################
+#--DTM, LISTA FREKWENCYJNA------------------------------------------------------------
+######################################################################################
 #wczytanie korpusu po oczyszczeniu
 load(file="corpus_gazeta_c_s.rda")
 corpus_gazeta<-bigcorp
@@ -295,14 +305,25 @@ freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
 word_freq <- data.frame(freq=freq)
 datatable(word_freq)
 
+#korpus jako ramka danych
+corpus_gazeta_df<-data.frame(text = sapply(corpus_gazeta, as.character), stringsAsFactors = FALSE)
+
 #-----
+date_cols<-articles_gazeta%>%
+  select(year, month, day, url_gazeta)
+
+corpus_gazeta_df<-cbind(corpus_gazeta_df, date_cols)
+
+body_words <- corpus_gazeta_df %>%
+  unnest_tokens(word_s, text, token = "words")
+
 articles_per_day <- articles_gazeta %>%
   count(year, month, day) %>%
   ungroup() %>%
   rename(n_arts = n)
 
 body_words %>%
-  filter(word_s %in% c("pis", "ko", "lewica", "psl")) %>%
+  filter(word_s %in% c("pis", "ko", "lewica", "psl", "sld", "konfederacja")) %>%
   count(year, month, day, word_s) %>%
   ungroup() %>%
   rename(n_words = n) %>%
@@ -316,9 +337,12 @@ body_words %>%
            stat="identity",
            fill = "gray80") +
   # line = liczba słów
-  geom_point(aes(date, n_words_plot, color = word_s), size = 2) +
+  geom_point(aes(date, n_words_plot, color = word_s, shape=word_s), size = 4) +
   theme(legend.position = "bottom")
-########################################LDA#############################################
+
+######################################################################################
+#--LDA--------------------------------------------------------------------------------
+######################################################################################
 #wybor liczby tematow w lda
 results_1 <- FindTopicsNumber(
   dtm,
@@ -394,18 +418,9 @@ beta_spread %>%
   labs(y = "Log2 ratio of beta in topic 2 / topic 1") +
   coord_flip()
 
-########################################ANLIZA SENTYMENTU###############################
-#articles<-data.frame(text = sapply(corpus_gazeta, as.character), stringsAsFactors = FALSE)
-
-some_cols<-articles_gazeta%>%
-  select(year, month, day, url_gazeta)
-
-corp<-data.frame(text = sapply(corpus_gazeta, as.character), stringsAsFactors = FALSE)
-
-corp<-cbind(corp, some_cols)
-
-body_words <- corp %>%
-  unnest_tokens(word_s, text, token = "words")
+######################################################################################
+#--ANALIZA SENTYMENTU-----------------------------------------------------------------
+######################################################################################
 
 pl_words_sentiment <- read_csv("pl_words.csv")
 #pl_words_sentiment <- pl_words_sentiment[, 2:8]

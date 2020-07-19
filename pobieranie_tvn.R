@@ -115,10 +115,6 @@ articles_tvn<-articles_tvn%>%
   filter(date>="2019-08-09")%>%
   filter(date<"2019-10-12")
 
-articles_tvn<-articles_tvn%>%
-  mutate(body = gsub("Autor.*", "", body))%>%
-  mutate(body = gsub("CZYTAJ WIĘCEJ", "", body))
-
 articles_tvn <- articles_tvn %>%
   mutate(day = day(date),
          month = month(date),
@@ -131,6 +127,10 @@ articles_tvn %>%
   geom_col(aes(make_date(year, month, day), n), fill="lightblue", color = "gray50") +
   scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
+
+articles_tvn<-articles_tvn%>%
+  mutate(body = gsub("Autor.*", "", body))%>%
+  mutate(body = gsub("CZYTAJ WIĘCEJ", "", body))
 
 corpus_tvn<-cbind(articles_tvn$title, articles_tvn$lead, articles_tvn$body)
 corpus_tvn<-as.data.frame(corpus_tvn)
