@@ -121,29 +121,37 @@ corpus_pap<-as.data.frame(corpus_pap)
 colnames(corpus_pap)<-c("title", "lead", "body")
 corpus_pap<-unite(corpus_pap, "text", c("title", "lead", "body"), sep=" ")
 
-#nazwiska
-corpus_pap<-corpus_pap%>%
-  mutate(text = gsub("Kidawa-Błońska", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawy-Błońskiej", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawie-Błońskiej", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawę-Błońską", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawą-Błońską", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kosiniak-Kamysz", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniaka-Kamysza", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniakowi-Kamyszowi", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniakiem-Kamyszem", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniaku-Kamyszu", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Korwin-Mikke", "korwinmikke", text))%>%
-  mutate(text = gsub("Korwin-Mikkego", "korwinmikke", text))%>%
-  mutate(text = gsub("Korwin-Mikkemu", "korwinmikke", text))%>%
-  mutate(text = gsub("Korwin-Mikkem", "korwinmikke", text))%>%
-  mutate(text = gsub("Liroy-Marzec", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroya-Marca", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroyowi-Marcowi", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroyem-Marcem", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroyu-Marcu", "liroymarzec", text))
+datatable(corpus_pap)
 
 #partie
+komitety_pap<-read.csv2("komitety_sejm_senat.csv", header = FALSE, encoding = "UTF-8", stringsAsFactors = FALSE)
+
+for(i in 1:nrow(komitety_pap)){
+  if(grepl(komitety_pap[i, 1], corpus_pap)==TRUE){
+    komitety_pap[i, 3]=TRUE
+  }else{
+    komitety_pap[i, 3]=FALSE
+  }
+}
+
+for(j in 1:nrow(komitety_pap)){
+  if(grepl(komitety_pap[j, 2], corpus_pap)==TRUE){
+    komitety_pap[j, 4]=TRUE
+  }else{
+    komitety_pap[j, 4]=FALSE
+  }
+}
+
+summary(komitety_pap)
+
+nazwy_komitety_pap<-komitety_pap%>%
+  filter(V3 == "TRUE")
+
+skroty_komitety_pap<-komitety_pap%>%
+  filter(V4 == "TRUE")
+
+znalezione_pap<-rbind(nazwy_komitety_pap$V1, skroty_komitety_pap$V2)
+
 corpus_pap<-corpus_pap%>%
   mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
   mutate(text = gsub("Prawa i Sprawiedliwości", "pis", text))%>%
@@ -165,7 +173,14 @@ corpus_pap<-corpus_pap%>%
   mutate(text = gsub("Polskiego Stronnictwa Ludowego", "psl", text))%>%
   mutate(text = gsub("Polskiemu Stronnictwu Ludowemu", "psl", text))%>%
   mutate(text = gsub("Polskim Stronnictwem Ludowym", "psl", text))%>%
-  mutate(text = gsub("Polskim Stronnictwie Ludowym", "psl", text))
+  mutate(text = gsub("Polskim Stronnictwie Ludowym", "psl", text))%>%
+  mutate(text = gsub("Konfederacja Wolność i Niepodległość", "konfederacja", text))%>%
+  mutate(text = gsub("Koalicja Bezpartyjni i Samorządowcy", "kbis", text))%>%
+  mutate(text = gsub("Koalicji Bezpartyjni i Samorządowcy", "kbis", text))%>%
+  mutate(text = gsub("Akcja Zawiedzionych Emerytów i Rencistów", "azeir", text))%>%
+  mutate(text = gsub("Skuteczni Piotra Liroya-Marca", "splm", text))
+
+datatable(corpus_pap)
 
 corpus_pap<-tibble(corpus_pap)
 corpus_pap<-unlist(corpus_pap)

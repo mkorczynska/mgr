@@ -18,6 +18,7 @@ install.packages("ldatuning")
 install.packages("topicmodels")
 install.packages("tidyr")
 install.packages("progress")
+install.packages("corpus")
 
 library(rvest)
 library(tidyverse)
@@ -36,6 +37,7 @@ library(ldatuning)
 library(topicmodels)
 library(tidyr)
 library(progress)
+library(corpus)
 
 path<-getwd()
 setwd(path)
@@ -131,27 +133,25 @@ corpus_gazeta<-as.data.frame(corpus_gazeta)
 colnames(corpus_gazeta)<-c("title", "lead", "body")
 corpus_gazeta<-unite(corpus_gazeta, "text", c("title", "lead", "body"), sep=" ")
 
-#nazwiska
-corpus_gazeta<-corpus_gazeta%>%
-  mutate(text = gsub("Kidawa-Błońska", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawy-Błońskiej", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawie-Błońskiej", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawę-Błońską", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawą-Błońską", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kosiniak-Kamysz", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniaka-Kamysza", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniakowi-Kamyszowi", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniakiem-Kamyszem", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniaku-Kamyszu", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Korwin-Mikke", "korwinmikke", text))%>%
-  mutate(text = gsub("Korwin-Mikkego", "korwinmikke", text))%>%
-  mutate(text = gsub("Korwin-Mikkemu", "korwinmikke", text))%>%
-  mutate(text = gsub("Korwin-Mikkem", "korwinmikke", text))%>%
-  mutate(text = gsub("Liroy-Marzec", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroya-Marca", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroyowi-Marcowi", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroyem-Marcem", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroyu-Marcu", "liroymarzec", text))
+datatable(corpus_gazeta)
+#partie
+komitety_gazeta<-read.csv2("komitety_sejm_senat.csv", header = FALSE, encoding = "UTF-8")
+
+for(i in 1:nrow(komitety)){
+  if(grepl(komitety[i, 1], corpus_gazeta)==TRUE){
+    komitety[i, 3]=TRUE
+  }else{
+    komitety[i, 3]=FALSE
+  }
+}
+
+for(j in 1:nrow(komitety)){
+  if(grepl(komitety[j, 2], corpus_gazeta)==TRUE){
+    komitety[j, 4]=TRUE
+  }else{
+    komitety[j, 4]=FALSE
+  }
+}
 
 #partie
 corpus_gazeta<-corpus_gazeta%>%
@@ -175,11 +175,20 @@ corpus_gazeta<-corpus_gazeta%>%
   mutate(text = gsub("Polskiego Stronnictwa Ludowego", "psl", text))%>%
   mutate(text = gsub("Polskiemu Stronnictwu Ludowemu", "psl", text))%>%
   mutate(text = gsub("Polskim Stronnictwem Ludowym", "psl", text))%>%
-  mutate(text = gsub("Polskim Stronnictwie Ludowym", "psl", text))
+  mutate(text = gsub("Polskim Stronnictwie Ludowym", "psl", text))%>%
+  mutate(text = gsub("Konfederacja Wolność i Niepodległość", "konfederacja", text))%>%
+  mutate(text = gsub("Koalicja Bezpartyjni i Samorządowcy", "kbis", text))%>%
+  mutate(text = gsub("Koalicji Bezpartyjni i Samorządowcy", "kbis", text))%>%
+  mutate(text = gsub("Akcja Zawiedzionych Emerytów i Rencistów", "azeir", text))%>%
+  mutate(text = gsub("Skuteczni Piotra Liroya-Marca", "splm", text))
+
+datatable(corpus_gazeta)
 
 corpus_gazeta<-tibble(corpus_gazeta)
 corpus_gazeta<-unlist(corpus_gazeta)
 corpus_gazeta<-VCorpus(VectorSource(corpus_gazeta))
+
+stats_corp_gazeta<-text_stats(corpus_gazeta)
 
 save.corpus.to.files(corpus_gazeta, filename = "corpus_gazeta")
 
@@ -205,11 +214,9 @@ stoplista<-stopwords("pl", source = "stopwords-iso")
 stoplista<-as.data.frame(stoplista)
 
 stem_dictionary <- read_csv2("polimorfologik-2.1.txt", col_names = c("stem", "word", "info"))
-stem_dictionary<-add_row(stem_dictionary, stem="kidawabłońska", word="kidawabłońska")
-stem_dictionary<-add_row(stem_dictionary, stem="kosiniakkamysz", word="kosiniakkamysz")
-stem_dictionary<-add_row(stem_dictionary, stem="korwinmikke", word="korwinmikke")
-stem_dictionary<-add_row(stem_dictionary, stem="liroymarzec", word="liroymarzec")
 stem_dictionary<-add_row(stem_dictionary, stem="ko", word="ko")
+stem_dictionary<-add_row(stem_dictionary, stem="kbis", word="kbis")
+stem_dictionary<-add_row(stem_dictionary, stem="splm", word="splm")
 
 bigcorp = tm_map(bigcorp, content_transformer(tolower))
 bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
