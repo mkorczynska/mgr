@@ -200,7 +200,7 @@ stoplista<-stopwords("pl", source = "stopwords-iso")
 stoplista<-as.data.frame(stoplista)
 
 stem_dictionary <- read_csv2("polimorfologik-2.1.txt", col_names = c("stem", "word", "info"))
-stem_dictionary<-add_row(stem_dictionary, stem="ko", word="ko")
+#stem_dictionary<-add_row(stem_dictionary, stem="ko", word="ko")
 
 stem<-as.data.frame(komitety_pap$Skrót)
 word<-as.data.frame(komitety_pap$Skrót)
@@ -213,7 +213,7 @@ colnames(skroty)<-c("stem", "word", "info")
 stem_dictionary<-rbind(stem_dictionary, skroty)
 
 bigcorp = tm_map(bigcorp, content_transformer(tolower))
-bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
+#bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
 bigcorp = tm_map(bigcorp, removeNumbers)
 bigcorp = tm_map(bigcorp, removePunctuation)
 bigcorp = tm_map(bigcorp, removeWords, stopwords("pl", source = "stopwords-iso"))
