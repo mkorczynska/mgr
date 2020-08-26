@@ -135,25 +135,23 @@ corpus_gazeta<-unite(corpus_gazeta, "text", c("title", "lead", "body"), sep=" ")
 
 datatable(corpus_gazeta)
 #partie
-komitety_gazeta<-read.csv2("komitety_sejm_senat.csv", header = FALSE, encoding = "UTF-8")
+komitety<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
 
-for(i in 1:nrow(komitety)){
-  if(grepl(komitety[i, 1], corpus_gazeta)==TRUE){
-    komitety[i, 3]=TRUE
-  }else{
-    komitety[i, 3]=FALSE
-  }
-}
+#for(i in 1:nrow(komitety_pap)){
+#  if(grepl(komitety_pap[i, 1], corpus_pap)==TRUE){
+#    komitety_pap[i, 3]=TRUE
+#  }else{
+#    komitety_pap[i, 3]=FALSE
+#  }
+#}
 
-for(j in 1:nrow(komitety)){
-  if(grepl(komitety[j, 2], corpus_gazeta)==TRUE){
-    komitety[j, 4]=TRUE
-  }else{
-    komitety[j, 4]=FALSE
-  }
-}
+#summary(komitety_pap)
 
-#partie
+#nazwy_komitety_pap<-komitety_pap%>%
+#  filter(V3 == "TRUE")
+
+corpus_gazeta <- mgsub(corpus_gazeta, komitety$X.U.FEFF.Nazwa, komitety$Skrót, safe = TRUE)
+
 corpus_gazeta<-corpus_gazeta%>%
   mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
   mutate(text = gsub("Prawa i Sprawiedliwości", "pis", text))%>%
@@ -176,11 +174,11 @@ corpus_gazeta<-corpus_gazeta%>%
   mutate(text = gsub("Polskiemu Stronnictwu Ludowemu", "psl", text))%>%
   mutate(text = gsub("Polskim Stronnictwem Ludowym", "psl", text))%>%
   mutate(text = gsub("Polskim Stronnictwie Ludowym", "psl", text))%>%
-  mutate(text = gsub("Konfederacja Wolność i Niepodległość", "konfederacja", text))%>%
-  mutate(text = gsub("Koalicja Bezpartyjni i Samorządowcy", "kbis", text))%>%
-  mutate(text = gsub("Koalicji Bezpartyjni i Samorządowcy", "kbis", text))%>%
-  mutate(text = gsub("Akcja Zawiedzionych Emerytów i Rencistów", "azeir", text))%>%
-  mutate(text = gsub("Skuteczni Piotra Liroya-Marca", "splm", text))
+  mutate(text = gsub("Konfederacja", "konf", text))%>%
+  mutate(text = gsub("Konfederacji", "konf", text))%>%
+  mutate(text = gsub("Konfederację", "konf", text))%>%
+  mutate(text = gsub("Konfederacją", "konf", text))%>%
+  mutate(text = gsub("Konfederacjo", "konf", text))
 
 datatable(corpus_gazeta)
 

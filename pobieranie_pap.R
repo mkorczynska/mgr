@@ -17,6 +17,8 @@ install.packages("ldatuning")
 install.packages("topicmodels")
 install.packages("tidyr")
 install.packages("progress")
+install.packages("corpus")
+install.packages("textclean")
 
 library(rvest)
 library(tidyverse)
@@ -35,6 +37,8 @@ library(ldatuning)
 library(topicmodels)
 library(tidyr)
 library(progress)
+library(corpus)
+library(textclean)
 
 path<-getwd()
 setwd(path)
@@ -124,33 +128,22 @@ corpus_pap<-unite(corpus_pap, "text", c("title", "lead", "body"), sep=" ")
 datatable(corpus_pap)
 
 #partie
-komitety_pap<-read.csv2("komitety_sejm_senat.csv", header = FALSE, encoding = "UTF-8", stringsAsFactors = FALSE)
+komitety_pap<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
 
-for(i in 1:nrow(komitety_pap)){
-  if(grepl(komitety_pap[i, 1], corpus_pap)==TRUE){
-    komitety_pap[i, 3]=TRUE
-  }else{
-    komitety_pap[i, 3]=FALSE
-  }
-}
+#for(i in 1:nrow(komitety_pap)){
+#  if(grepl(komitety_pap[i, 1], corpus_pap)==TRUE){
+#    komitety_pap[i, 3]=TRUE
+#  }else{
+#    komitety_pap[i, 3]=FALSE
+#  }
+#}
 
-for(j in 1:nrow(komitety_pap)){
-  if(grepl(komitety_pap[j, 2], corpus_pap)==TRUE){
-    komitety_pap[j, 4]=TRUE
-  }else{
-    komitety_pap[j, 4]=FALSE
-  }
-}
+#summary(komitety_pap)
 
-summary(komitety_pap)
+#nazwy_komitety_pap<-komitety_pap%>%
+#  filter(V3 == "TRUE")
 
-nazwy_komitety_pap<-komitety_pap%>%
-  filter(V3 == "TRUE")
-
-skroty_komitety_pap<-komitety_pap%>%
-  filter(V4 == "TRUE")
-
-znalezione_pap<-rbind(nazwy_komitety_pap$V1, skroty_komitety_pap$V2)
+corpus_pap <- mgsub(corpus_pap, komitety_pap$X.U.FEFF.Nazwa, komitety_pap$Skrót, safe = TRUE)
 
 corpus_pap<-corpus_pap%>%
   mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
@@ -174,11 +167,11 @@ corpus_pap<-corpus_pap%>%
   mutate(text = gsub("Polskiemu Stronnictwu Ludowemu", "psl", text))%>%
   mutate(text = gsub("Polskim Stronnictwem Ludowym", "psl", text))%>%
   mutate(text = gsub("Polskim Stronnictwie Ludowym", "psl", text))%>%
-  mutate(text = gsub("Konfederacja Wolność i Niepodległość", "konfederacja", text))%>%
-  mutate(text = gsub("Koalicja Bezpartyjni i Samorządowcy", "kbis", text))%>%
-  mutate(text = gsub("Koalicji Bezpartyjni i Samorządowcy", "kbis", text))%>%
-  mutate(text = gsub("Akcja Zawiedzionych Emerytów i Rencistów", "azeir", text))%>%
-  mutate(text = gsub("Skuteczni Piotra Liroya-Marca", "splm", text))
+  mutate(text = gsub("Konfederacja", "konf", text))%>%
+  mutate(text = gsub("Konfederacji", "konf", text))%>%
+  mutate(text = gsub("Konfederację", "konf", text))%>%
+  mutate(text = gsub("Konfederacją", "konf", text))%>%
+  mutate(text = gsub("Konfederacjo", "konf", text))
 
 datatable(corpus_pap)
 
@@ -186,7 +179,7 @@ corpus_pap<-tibble(corpus_pap)
 corpus_pap<-unlist(corpus_pap)
 corpus_pap<-VCorpus(VectorSource(corpus_pap))
 
-save.corpus.to.files(corpus_pap, filename = "corpus_pap")
+save.corpus.to.files(corpus_pap, filename = "new_corpus_pap")
 
 #######################OCZYSZCZANIE KORPUSU###########################################
 #----------------------FUNKCJE-----------------------------------------------#
@@ -207,11 +200,17 @@ stoplista<-stopwords("pl", source = "stopwords-iso")
 stoplista<-as.data.frame(stoplista)
 
 stem_dictionary <- read_csv2("polimorfologik-2.1.txt", col_names = c("stem", "word", "info"))
-stem_dictionary<-add_row(stem_dictionary, stem="kidawabłońska", word="kidawabłońska")
-stem_dictionary<-add_row(stem_dictionary, stem="kosiniakkamysz", word="kosiniakkamysz")
-stem_dictionary<-add_row(stem_dictionary, stem="korwinmikke", word="korwinmikke")
-stem_dictionary<-add_row(stem_dictionary, stem="liroymarzec", word="liroymarzec")
 stem_dictionary<-add_row(stem_dictionary, stem="ko", word="ko")
+
+stem<-as.data.frame(komitety_pap$Skrót)
+word<-as.data.frame(komitety_pap$Skrót)
+info<-matrix(nrow=172, ncol=1)
+info<-as.data.frame(info)
+
+skroty<-cbind(stem, word, info)
+colnames(skroty)<-c("stem", "word", "info")
+
+stem_dictionary<-rbind(stem_dictionary, skroty)
 
 bigcorp = tm_map(bigcorp, content_transformer(tolower))
 bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
