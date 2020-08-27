@@ -128,7 +128,7 @@ corpus_pap<-unite(corpus_pap, "text", c("title", "lead", "body"), sep=" ")
 datatable(corpus_pap)
 
 #partie
-komitety_pap<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
+komitety<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
 
 #for(i in 1:nrow(komitety_pap)){
 #  if(grepl(komitety_pap[i, 1], corpus_pap)==TRUE){
@@ -143,7 +143,7 @@ komitety_pap<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UT
 #nazwy_komitety_pap<-komitety_pap%>%
 #  filter(V3 == "TRUE")
 
-corpus_pap <- mgsub(corpus_pap, komitety_pap$X.U.FEFF.Nazwa, komitety_pap$Skrót, safe = TRUE)
+corpus_pap <- mgsub(corpus_pap, komitety$X.U.FEFF.Nazwa, komitety$Skrót, safe = TRUE)
 
 corpus_pap<-corpus_pap%>%
   mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
@@ -202,8 +202,8 @@ stoplista<-as.data.frame(stoplista)
 stem_dictionary <- read_csv2("polimorfologik-2.1.txt", col_names = c("stem", "word", "info"))
 #stem_dictionary<-add_row(stem_dictionary, stem="ko", word="ko")
 
-stem<-as.data.frame(komitety_pap$Skrót)
-word<-as.data.frame(komitety_pap$Skrót)
+stem<-as.data.frame(komitety$Skrót)
+word<-as.data.frame(komitety$Skrót)
 info<-matrix(nrow=172, ncol=1)
 info<-as.data.frame(info)
 

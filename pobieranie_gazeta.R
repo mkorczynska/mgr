@@ -19,6 +19,7 @@ install.packages("topicmodels")
 install.packages("tidyr")
 install.packages("progress")
 install.packages("corpus")
+install.packages("textclean")
 
 library(rvest)
 library(tidyverse)
@@ -38,6 +39,7 @@ library(topicmodels)
 library(tidyr)
 library(progress)
 library(corpus)
+library(textclean)
 
 path<-getwd()
 setwd(path)
@@ -212,9 +214,17 @@ stoplista<-stopwords("pl", source = "stopwords-iso")
 stoplista<-as.data.frame(stoplista)
 
 stem_dictionary <- read_csv2("polimorfologik-2.1.txt", col_names = c("stem", "word", "info"))
-stem_dictionary<-add_row(stem_dictionary, stem="ko", word="ko")
-stem_dictionary<-add_row(stem_dictionary, stem="kbis", word="kbis")
-stem_dictionary<-add_row(stem_dictionary, stem="splm", word="splm")
+
+stem<-as.data.frame(komitety$Skrót)
+word<-as.data.frame(komitety$Skrót)
+info<-matrix(nrow=172, ncol=1)
+info<-as.data.frame(info)
+
+skroty<-cbind(stem, word, info)
+colnames(skroty)<-c("stem", "word", "info")
+
+stem_dictionary<-rbind(stem_dictionary, skroty)
+
 
 bigcorp = tm_map(bigcorp, content_transformer(tolower))
 bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
