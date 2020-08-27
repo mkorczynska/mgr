@@ -17,6 +17,8 @@ install.packages("ldatuning")
 install.packages("topicmodels")
 install.packages("tidyr")
 install.packages("progress")
+install.packages("corpus")
+install.packages("textclean")
 
 library(rvest)
 library(tidyverse)
@@ -35,6 +37,8 @@ library(ldatuning)
 library(topicmodels)
 library(tidyr)
 library(progress)
+library(corpus)
+library(textclean)
 
 path<-getwd()
 setwd(path)
@@ -125,29 +129,26 @@ corpus_polsat<-as.data.frame(corpus_polsat)
 colnames(corpus_polsat)<-c("title", "lead", "body")
 corpus_polsat<-unite(corpus_polsat, "text", c("title", "lead", "body"), sep=" ")
 
-#nazwiska
-corpus_polsat<-corpus_polsat%>%
-  mutate(text = gsub("Kidawa-Błońska", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawy-Błońskiej", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawie-Błońskiej", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawę-Błońską", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kidawą-Błońską", "kidawabłońska", text))%>%
-  mutate(text = gsub("Kosiniak-Kamysz", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniaka-Kamysza", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniakowi-Kamyszowi", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniakiem-Kamyszem", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Kosiniaku-Kamyszu", "kosiniakkamysz", text))%>%
-  mutate(text = gsub("Korwin-Mikke", "korwinmikke", text))%>%
-  mutate(text = gsub("Korwin-Mikkego", "korwinmikke", text))%>%
-  mutate(text = gsub("Korwin-Mikkemu", "korwinmikke", text))%>%
-  mutate(text = gsub("Korwin-Mikkem", "korwinmikke", text))%>%
-  mutate(text = gsub("Liroy-Marzec", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroya-Marca", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroyowi-Marcowi", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroyem-Marcem", "liroymarzec", text))%>%
-  mutate(text = gsub("Liroyu-Marcu", "liroymarzec", text))
-
+datatable(corpus_polsat)
 #partie
+komitety<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
+komitety_polsat<-komitety
+
+for(i in 1:nrow(komitety_polsat)){
+  if(grepl(komitety_polsat[i, 1], corpus_polsat)==TRUE){
+    komitety_polsat[i, 3]=TRUE
+  }else{
+    komitety_polsat[i, 3]=FALSE
+  }
+}
+
+summary(komitety_polsat)
+
+#nazwy_komitety_pap<-komitety_pap%>%
+#  filter(V3 == "TRUE")
+
+corpus_polsat <- mgsub(corpus_polsat, komitety$X.U.FEFF.Nazwa, komitety$Skrót, safe = TRUE)
+
 corpus_polsat<-corpus_polsat%>%
   mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
   mutate(text = gsub("Prawa i Sprawiedliwości", "pis", text))%>%
@@ -169,13 +170,20 @@ corpus_polsat<-corpus_polsat%>%
   mutate(text = gsub("Polskiego Stronnictwa Ludowego", "psl", text))%>%
   mutate(text = gsub("Polskiemu Stronnictwu Ludowemu", "psl", text))%>%
   mutate(text = gsub("Polskim Stronnictwem Ludowym", "psl", text))%>%
-  mutate(text = gsub("Polskim Stronnictwie Ludowym", "psl", text))
+  mutate(text = gsub("Polskim Stronnictwie Ludowym", "psl", text))%>%
+  mutate(text = gsub("Konfederacja", "konf", text))%>%
+  mutate(text = gsub("Konfederacji", "konf", text))%>%
+  mutate(text = gsub("Konfederację", "konf", text))%>%
+  mutate(text = gsub("Konfederacją", "konf", text))%>%
+  mutate(text = gsub("Konfederacjo", "konf", text))
+
+datatable(corpus_polsat)
 
 corpus_polsat<-tibble(corpus_polsat)
 corpus_polsat<-unlist(corpus_polsat)
 corpus_polsat<-VCorpus(VectorSource(corpus_polsat))
 
-save.corpus.to.files(corpus_polsat, filename = "corpus_polsat")
+save.corpus.to.files(corpus_polsat, filename = "new_corpus_polsat")
 
 #######################OCZYSZCZANIE KORPUSU###########################################
 #----------------------FUNKCJE-----------------------------------------------#
@@ -190,18 +198,23 @@ stem_word <- function(word_to_stem) {
 }
 #----------------------------------------------------------------------------#
 
-load(file="corpus_polsat.rda")
+load(file="new_corpus_polsat.rda")
 bigcorp<-corpus_polsat
 
 stoplista<-stopwords("pl", source = "stopwords-iso")
 stoplista<-as.data.frame(stoplista)
 
 stem_dictionary <- read_csv2("polimorfologik-2.1.txt", col_names = c("stem", "word", "info"))
-stem_dictionary<-add_row(stem_dictionary, stem="kidawabłońska", word="kidawabłońska")
-stem_dictionary<-add_row(stem_dictionary, stem="kosiniakkamysz", word="kosiniakkamysz")
-stem_dictionary<-add_row(stem_dictionary, stem="korwinmikke", word="korwinmikke")
-stem_dictionary<-add_row(stem_dictionary, stem="liroymarzec", word="liroymarzec")
-stem_dictionary<-add_row(stem_dictionary, stem="ko", word="ko")
+
+stem<-as.data.frame(komitety$Skrót)
+word<-as.data.frame(komitety$Skrót)
+info<-matrix(nrow=172, ncol=1)
+info<-as.data.frame(info)
+
+skroty<-cbind(stem, word, info)
+colnames(skroty)<-c("stem", "word", "info")
+
+stem_dictionary<-rbind(stem_dictionary, skroty)
 
 bigcorp = tm_map(bigcorp, content_transformer(tolower))
 bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
@@ -250,10 +263,10 @@ corpus_polsat = tm_map(corpus_polsat, content_transformer(tolower))
 corpus_polsat = tm_map(corpus_polsat, removeWords, stopwords("pl", source = "stopwords-iso"))
 corpus_polsat = tm_map(corpus_polsat, stripWhitespace)
 
-save.corpus.to.files(corpus_polsat, filename = "corpus_polsat_c_s")
+save.corpus.to.files(corpus_polsat, filename = "new_corpus_polsat_c_s")
 #-----------------------------------------------------------------
 #wczytanie korpusu po oczyszczeniu
-load(file="corpus_polsat_c_s.rda")
+load(file="new_corpus_polsat_c_s.rda")
 corpus_polsat<-bigcorp
 
 #macierz dokument-term
