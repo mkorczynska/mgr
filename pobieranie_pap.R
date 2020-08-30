@@ -129,16 +129,17 @@ datatable(corpus_pap)
 
 #partie
 komitety<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
+komitety_pap<-komitety
 
-#for(i in 1:nrow(komitety_pap)){
-#  if(grepl(komitety_pap[i, 1], corpus_pap)==TRUE){
-#    komitety_pap[i, 3]=TRUE
-#  }else{
-#    komitety_pap[i, 3]=FALSE
-#  }
-#}
+for(i in 1:nrow(komitety_pap)){
+  if(grepl(komitety_pap[i, 1], corpus_pap)==TRUE){
+    komitety_pap[i, 3]=TRUE
+  }else{
+    komitety_pap[i, 3]=FALSE
+  }
+}
 
-#summary(komitety_pap)
+summary(komitety_pap)
 
 #nazwy_komitety_pap<-komitety_pap%>%
 #  filter(V3 == "TRUE")
@@ -200,7 +201,6 @@ stoplista<-stopwords("pl", source = "stopwords-iso")
 stoplista<-as.data.frame(stoplista)
 
 stem_dictionary <- read_csv2("polimorfologik-2.1.txt", col_names = c("stem", "word", "info"))
-#stem_dictionary<-add_row(stem_dictionary, stem="ko", word="ko")
 
 stem<-as.data.frame(komitety$Skrót)
 word<-as.data.frame(komitety$Skrót)
@@ -213,7 +213,6 @@ colnames(skroty)<-c("stem", "word", "info")
 stem_dictionary<-rbind(stem_dictionary, skroty)
 
 bigcorp = tm_map(bigcorp, content_transformer(tolower))
-#bigcorp = tm_map(bigcorp, content_transformer(gsub), pattern = "proc.", replacement = "procent ")
 bigcorp = tm_map(bigcorp, removeNumbers)
 bigcorp = tm_map(bigcorp, removePunctuation)
 bigcorp = tm_map(bigcorp, removeWords, stopwords("pl", source = "stopwords-iso"))
@@ -261,10 +260,10 @@ corpus_pap = tm_map(corpus_pap, content_transformer(tolower))
 corpus_pap = tm_map(corpus_pap, removeWords, stopwords("pl", source = "stopwords-iso"))
 corpus_pap = tm_map(corpus_pap, stripWhitespace)
 
-save.corpus.to.files(corpus_gazeta, filename = "corpus_pap_c_s")
+save.corpus.to.files(corpus_gazeta, filename = "new_corpus_pap_c_s")
 #-----------------------------------------------------------------
 #wczytanie korpusu po oczyszczeniu
-load(file="corpus_pap_c_s.rda")
+load(file="new_corpus_pap_c_s.rda")
 corpus_pap<-bigcorp
 
 #macierz dokument-term
@@ -302,6 +301,12 @@ freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
 word_freq <- data.frame(freq=freq)
 datatable(word_freq)
 
+freq_1 <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+wf <- data.frame(word=names(freq_1), freq_1=freq_1)
+
+subset(wf, freq_1>500)%>%
+  ggplot() +
+  geom_bar(data=wf, aes(word, freq), stat="identity", fill="darkred", colour="darkgreen")
 #-----
 articles_per_day <- articles_pap %>%
   count(year, month, day) %>%
@@ -352,12 +357,34 @@ FindTopicsNumber_plot(results_2)
 datatable(results_100)
 
 #lda
-lda_20_2 <- LDA(dtm, k = 15)
+lda_pap <- LDA(dtm, k = 10, method = "Gibbs")
 #zapisanie wspolczynnikow beta dla kazdego slowa i tematu
-topics_20 <- tidy(lda_20_2, matrix = "beta")
+topics_words_pap <- tidy(lda_pap, matrix = "beta")
+topics_docs_pap <- tidy(lda_pap, matrix = "gamma")
+
+
+tidy(dtm) %>%
+  filter(document == 6) %>%
+  arrange(desc(count))
+
+
+# get classification of each document
+doc_classes <- topics_docs_pap %>%
+  group_by(document) %>%
+  top_n(1) %>%
+  ungroup()
+
+doc_classes%>% count(topic)
+
+# which were we most uncertain about?
+doc_classes %>%
+  arrange(gamma)
+
+elo<-topics_docs_pap %>%
+  group_by(topic) 
 
 #wykres slow dla poszczegolnych tematow
-topics_20 %>%
+topics_pap %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
   ungroup() %>%
@@ -369,7 +396,7 @@ topics_20 %>%
   coord_flip()
 
 #topowe slowa w kazdym z tematow
-ap_top_terms <- topics_20 %>%
+ap_top_terms <- topics_pap %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
   ungroup() %>%
@@ -384,7 +411,7 @@ ap_top_terms %>%
   coord_flip()
 
 #beta spread
-beta_spread <- topics_20 %>%
+beta_spread <- topics_pap %>%
   mutate(topic = paste0("topic", topic)) %>%
   spread(topic, beta) %>%
   filter(topic1 > .001 | topic2 > .001) %>%
@@ -401,6 +428,7 @@ beta_spread %>%
   labs(y = "Log2 ratio of beta in topic 2 / topic 1") +
   coord_flip()
 
+assignments<-augment(lda_pap, dtm)
 ########################################ANLIZA SENTYMENTU###############################
 #articles<-data.frame(text = sapply(bigcorp, as.character), stringsAsFactors = FALSE)
 
@@ -480,3 +508,21 @@ body_sentiment %>%
               se = FALSE) +
   facet_wrap(~word_s.y, ncol = 3) +
   theme(legend.position = "bottom")
+
+###########################################
+install.packages("Compositional")
+install.packages("MCMCpack")
+
+library(Compositional)
+library(MCMCpack)
+
+draws_1 <- rdirichlet(100, c(.1, .1, .1))
+draws_2 <- rdirichlet(200, c(.5, .5, .5))
+draws_3 <- rdirichlet(200, c(1, 1, 1))
+draws_4 <- rdirichlet(200, c(5, 5, 5))
+par(mfrow=c(2,2))
+bivt.contour(draws_1)
+bivt.contour(draws_2)
+bivt.contour(draws_3)
+bivt.contour(draws_4)
+
