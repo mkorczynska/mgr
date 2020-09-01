@@ -1,5 +1,6 @@
-###POBIERANIE ARTYKULOW---------------------------------------------------------------
-###BIBLIOTEKI-------------------------------------------------------------------------
+######################################################################################
+#--BIBLIOTEKI-------------------------------------------------------------------------
+######################################################################################
 install.packages("rvest")
 install.packages("tidyverse")
 install.packages("stringr")
@@ -42,7 +43,10 @@ library(textclean)
 
 path<-getwd()
 setwd(path)
-###-----------------------------------------------------------------------------------
+
+######################################################################################
+#--ZAPISYWANIE TEKSTOW----------------------------------------------------------------
+######################################################################################
 url_tvn_1 <-"https://tvn24.pl/wybory-parlamentarne-2019,5225,t/"
 
 pages_tvn <- 28
@@ -104,7 +108,9 @@ articles_tvn<-articles_tvn%>%
 
 saveRDS(articles_tvn, file = "articles_tvn.RDS")
 
-##############################UTWORZENIE KORPUSU##############################################
+######################################################################################
+#--UTWORZENIE KORPUSU-----------------------------------------------------------------
+######################################################################################
 articles_tvn <- readRDS("articles_tvn.RDS")
 datatable(articles_tvn)
 
@@ -203,7 +209,10 @@ corpus_tvn<-VCorpus(VectorSource(corpus_tvn))
 
 save.corpus.to.files(corpus_tvn, filename = "new_corpus_tvn")
 
-#######################OCZYSZCZANIE KORPUSU###########################################
+######################################################################################
+#--OCZYSZCZANIE KORPUSU---------------------------------------------------------------
+######################################################################################
+
 #----------------------FUNKCJE-----------------------------------------------#
 #funkcja do usuwania konkretnych slow, wyrazen
 delete_pattern<-content_transformer(function(x, pattern){
@@ -282,18 +291,21 @@ corpus_tvn = tm_map(corpus_tvn, removeWords, stopwords("pl", source = "stopwords
 corpus_tvn = tm_map(corpus_tvn, stripWhitespace)
 
 save.corpus.to.files(corpus_gazeta, filename = "new_corpus_tvn_c_s")
-#-----------------------------------------------------------------
+
+######################################################################################
+#--DTM, LISTA FREKWENCYJNA------------------------------------------------------------
+######################################################################################
 #wczytanie korpusu po oczyszczeniu
 load(file="new_corpus_tvn_c_s.rda")
 corpus_tvn<-bigcorp
 
 #macierz dokument-term
-dtm = DocumentTermMatrix(corpus_tvn)
-inspect(dtm)
+dtm_tvn = DocumentTermMatrix(corpus_tvn)
+inspect(dtm_tvn)
 
 #czestosc slow
-freq <- colSums(as.matrix(dtm))
-freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+freq <- colSums(as.matrix(dtm_tvn))
+freq <- sort(colSums(as.matrix(dtm_tvn)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
 word_freq <- data.frame(word=names(freq), freq=freq)
@@ -305,16 +317,24 @@ top_n(word_freq, n=10, freq) %>%
   geom_bar(stat="identity") +
   geom_text(aes(label=freq), position=position_dodge(width=0.9), vjust=-0.25)
 
-#usuniecie wyrazow zwiazanych z tematem
-corpus_pap = tm_map(corpus_pap, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
+#redukcja
+dtm_tvn = removeSparseTerms(dtm_tvn, 0.99)
+inspect(dtm_tvn)
 
-#macierz dokument-term
-dtm = DocumentTermMatrix(corpus_pap)
-inspect(dtm)
-dtm = removeSparseTerms(dtm, 0.99)
-inspect(dtm)
+######################################################################################
+#--WYSTEPOWANIE NAZW PARTII-----------------------------------------------------------
+######################################################################################
+#korpus jako ramka danych
+corpus_tvn_df<-data.frame(text = sapply(corpus_tvn, as.character), stringsAsFactors = FALSE)
 
-#-----
+date_cols<-articles_tvn%>%
+  dplyr::select(year, month, day, url)
+
+corpus_tvn_df<-cbind(corpus_tvn_df, date_cols)
+
+body_words <- corpus_tvn_df %>%
+  unnest_tokens(word_s, text, token = "words")
+
 articles_per_day <- articles_tvn %>%
   count(year, month, day) %>%
   ungroup() %>%

@@ -1,5 +1,6 @@
-###POBIERANIE ARTYKULOW---------------------------------------------------------------
-###BIBLIOTEKI-------------------------------------------------------------------------
+######################################################################################
+#--BIBLIOTEKI-------------------------------------------------------------------------
+######################################################################################
 install.packages("rvest")
 install.packages("tidyverse")
 install.packages("stringr")
@@ -42,7 +43,10 @@ library(textclean)
 
 path<-getwd()
 setwd(path)
-###-----------------------------------------------------------------------------------
+
+######################################################################################
+#--ZAPISYWANIE TEKSTOW----------------------------------------------------------------
+######################################################################################
 url_interia_1 <-"https://fakty.interia.pl/raporty/raport-wybory-parlamentarne-2019/aktualnosci,nPack,"
 
 pages_interia <- 84
@@ -100,7 +104,9 @@ articles_interia<-articles_interia %>%
 
 saveRDS(articles_interia, file = "articles_interia.RDS")
 
-##############################UTWORZENIE KORPUSU##############################################
+######################################################################################
+#--UTWORZENIE KORPUSU-----------------------------------------------------------------
+######################################################################################
 articles_interia <- readRDS("articles_interia.RDS")
 datatable(articles_interia)
 
@@ -204,7 +210,10 @@ corpus_interia<-VCorpus(VectorSource(corpus_interia))
 
 save.corpus.to.files(corpus_interia, filename = "new_corpus_interia")
 
-#######################OCZYSZCZANIE KORPUSU###########################################
+######################################################################################
+#--OCZYSZCZANIE KORPUSU---------------------------------------------------------------
+######################################################################################
+
 #----------------------FUNKCJE-----------------------------------------------#
 #funkcja do usuwania konkretnych slow, wyrazen
 delete_pattern<-content_transformer(function(x, pattern){
@@ -284,18 +293,21 @@ corpus_interia = tm_map(corpus_interia, removeWords, stopwords("pl", source = "s
 corpus_interia = tm_map(corpus_interia, stripWhitespace)
 
 save.corpus.to.files(corpus_interia, filename = "new_corpus_interia_c_s")
-#-----------------------------------------------------------------
+
+######################################################################################
+#--DTM, LISTA FREKWENCYJNA------------------------------------------------------------
+######################################################################################
 #wczytanie korpusu po oczyszczeniu
 load(file="new_corpus_interia_c_s.rda")
 corpus_interia<-bigcorp
 
 #macierz dokument-term
-dtm = DocumentTermMatrix(corpus_interia)
-inspect(dtm)
+dtm_interia = DocumentTermMatrix(corpus_interia)
+inspect(dtm_interia)
 
 #czestosc slow
-freq <- colSums(as.matrix(dtm))
-freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+freq <- colSums(as.matrix(dtm_interia))
+freq <- sort(colSums(as.matrix(dtm_interia)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
 word_freq <- data.frame(word=names(freq), freq=freq)
@@ -307,16 +319,24 @@ top_n(word_freq, n=10, freq) %>%
   geom_bar(stat="identity") +
   geom_text(aes(label=freq), position=position_dodge(width=0.9), vjust=-0.25)
 
-#usuniecie wyrazow zwiazanych z tematem
-corpus_pap = tm_map(corpus_pap, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
+#redukcja
+dtm_interia = removeSparseTerms(dtm_interia, 0.99)
+inspect(dtm_interia)
 
-#macierz dokument-term
-dtm = DocumentTermMatrix(corpus_pap)
-inspect(dtm)
-dtm = removeSparseTerms(dtm, 0.99)
-inspect(dtm)
+######################################################################################
+#--WYSTEPOWANIE NAZW PARTII-----------------------------------------------------------
+######################################################################################
+#korpus jako ramka danych
+corpus_interia_df<-data.frame(text = sapply(corpus_interia, as.character), stringsAsFactors = FALSE)
 
-#-----
+date_cols<-articles_interia%>%
+  dplyr::select(year, month, day, url)
+
+corpus_interia_df<-cbind(corpus_interia_df, date_cols)
+
+body_words <- corpus_interia_df %>%
+  unnest_tokens(word_s, text, token = "words")
+
 articles_per_day <- articles_interia %>%
   count(year, month, day) %>%
   ungroup() %>%

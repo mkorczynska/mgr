@@ -292,12 +292,12 @@ load(file="new_corpus_gazeta_c_s.rda")
 corpus_gazeta<-bigcorp
 
 #macierz dokument-term
-dtm = DocumentTermMatrix(corpus_gazeta)
-inspect(dtm)
+dtm_gazeta = DocumentTermMatrix(corpus_gazeta)
+inspect(dtm_gazeta)
 
 #czestosc slow
-freq <- colSums(as.matrix(dtm))
-freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+freq <- colSums(as.matrix(dtm_gazeta))
+freq <- sort(colSums(as.matrix(dtm_gazeta)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
 word_freq <- data.frame(word=names(freq), freq=freq)
@@ -309,19 +309,16 @@ top_n(word_freq, n=10, freq) %>%
   geom_bar(stat="identity") +
   geom_text(aes(label=freq), position=position_dodge(width=0.9), vjust=-0.25)
 
-#usuniecie wyrazow zwiazanych z tematem
-corpus_pap = tm_map(corpus_pap, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
+#redukcja
+dtm_gazeta = removeSparseTerms(dtm_gazeta, 0.99)
+inspect(dtm_gazeta)
 
-#macierz dokument-term
-dtm = DocumentTermMatrix(corpus_pap)
-inspect(dtm)
-dtm = removeSparseTerms(dtm, 0.99)
-inspect(dtm)
-
+######################################################################################
+#--WYSTEPOWANIE NAZW PARTII-----------------------------------------------------------
+######################################################################################
 #korpus jako ramka danych
 corpus_gazeta_df<-data.frame(text = sapply(corpus_gazeta, as.character), stringsAsFactors = FALSE)
 
-#-----
 date_cols<-articles_gazeta%>%
   select(year, month, day, url_gazeta)
 

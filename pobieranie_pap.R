@@ -285,12 +285,12 @@ load(file="new_corpus_pap_c_s.rda")
 corpus_pap<-bigcorp
 
 #macierz dokument-term
-dtm = DocumentTermMatrix(corpus_pap)
-inspect(dtm)
+dtm_pap = DocumentTermMatrix(corpus_pap)
+inspect(dtm_pap)
 
 #czestosc slow
-freq <- colSums(as.matrix(dtm))
-freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+freq <- colSums(as.matrix(dtm_pap))
+freq <- sort(colSums(as.matrix(dtm_pap)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
 word_freq <- data.frame(word=names(freq), freq=freq)
@@ -302,14 +302,9 @@ top_n(word_freq, n=10, freq) %>%
   geom_bar(stat="identity") +
   geom_text(aes(label=freq), position=position_dodge(width=0.9), vjust=-0.25)
 
-#usuniecie wyrazow zwiazanych z tematem
-corpus_pap = tm_map(corpus_pap, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
-
-#macierz dokument-term
-dtm = DocumentTermMatrix(corpus_pap)
-inspect(dtm)
-dtm = removeSparseTerms(dtm, 0.99)
-inspect(dtm)
+#redukcja
+dtm_pap = removeSparseTerms(dtm_pap, 0.99)
+inspect(dtm_pap)
 
 ######################################################################################
 #--WYSTEPOWANIE NAZW PARTII-----------------------------------------------------------
@@ -352,18 +347,18 @@ body_words %>%
 ######################################################################################
 #wybor liczby tematow w lda
 results_1 <- FindTopicsNumber(
-  dtm,
-  topics = seq(from = 2, to = 30, by = 2),
-  metrics = c("Arun2010", "Deveaud2014"),
-  method = "Gibbs",
+  dtm_pap,
+  topics = seq(from = 2, to = 10, by = 2),
+  metrics = c("Arun2010", "Deveaud2014", "Griffiths2004", "CaoJuan2009"),
+  method = "VEM",
   mc.cores = 4L,
   verbose = TRUE
 )
 
 results_2 <- FindTopicsNumber(
-  dtm,
-  topics = seq(from = 2, to = 30, by = 2),
-  metrics = c("Griffiths2004", "CaoJuan2009"),
+  dtm_pap,
+  topics = seq(from = 2, to = 10, by = 2),
+  metrics = c("Arun2010", "Deveaud2014", "Griffiths2004", "CaoJuan2009"),
   method = "Gibbs",
   mc.cores = 4L,
   verbose = TRUE
@@ -374,7 +369,7 @@ FindTopicsNumber_plot(results_1)
 FindTopicsNumber_plot(results_2)
 
 #lda
-lda_pap <- LDA(dtm, k = 10, method = "Gibbs", control=list(seed=1234))
+lda_pap <- LDA(dtm_pap, k = 8, method = "Gibbs", control=list(seed=1234))
 
 #zapisanie beta i gamma
 topics_words_pap <- tidy(lda_pap, matrix = "beta")

@@ -1,5 +1,6 @@
-###POBIERANIE ARTYKULOW---------------------------------------------------------------
-###BIBLIOTEKI-------------------------------------------------------------------------
+######################################################################################
+#--BIBLIOTEKI-------------------------------------------------------------------------
+######################################################################################
 install.packages("rvest")
 install.packages("tidyverse")
 install.packages("stringr")
@@ -42,7 +43,10 @@ library(textclean)
 
 path<-getwd()
 setwd(path)
-###-----------------------------------------------------------------------------------
+
+######################################################################################
+#--ZAPISYWANIE TEKSTOW----------------------------------------------------------------
+######################################################################################
 url_polsat_1 <- "https://www.polsatnews.pl/raport/module35471/page"
 url_polsat_2 <- "/wybory-parlamentarne-2019_1494891/"
 
@@ -95,7 +99,9 @@ articles_polsat <- polsat_links %>%
 
 saveRDS(articles_polsat, file = "articles_polsat.RDS")
 
-##############################UTWORZENIE KORPUSU##############################################
+######################################################################################
+#--UTWORZENIE KORPUSU-----------------------------------------------------------------
+######################################################################################
 articles_polsat <- readRDS("articles_polsat.RDS")
 datatable(articles_polsat)
 
@@ -191,7 +197,10 @@ corpus_polsat<-VCorpus(VectorSource(corpus_polsat))
 
 save.corpus.to.files(corpus_polsat, filename = "new_corpus_polsat")
 
-#######################OCZYSZCZANIE KORPUSU###########################################
+######################################################################################
+#--OCZYSZCZANIE KORPUSU---------------------------------------------------------------
+######################################################################################
+
 #----------------------FUNKCJE-----------------------------------------------#
 #funkcja do usuwania konkretnych slow, wyrazen
 delete_pattern<-content_transformer(function(x, pattern){
@@ -270,18 +279,21 @@ corpus_polsat = tm_map(corpus_polsat, removeWords, stopwords("pl", source = "sto
 corpus_polsat = tm_map(corpus_polsat, stripWhitespace)
 
 save.corpus.to.files(corpus_polsat, filename = "new_corpus_polsat_c_s")
-#-----------------------------------------------------------------
+
+######################################################################################
+#--DTM, LISTA FREKWENCYJNA------------------------------------------------------------
+######################################################################################
 #wczytanie korpusu po oczyszczeniu
 load(file="new_corpus_polsat_c_s.rda")
 corpus_polsat<-bigcorp
 
 #macierz dokument-term
-dtm = DocumentTermMatrix(corpus_polsat)
-inspect(dtm)
+dtm_polsat = DocumentTermMatrix(corpus_polsat)
+inspect(dtm_polsat)
 
 #czestosc slow
-freq <- colSums(as.matrix(dtm))
-freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+freq <- colSums(as.matrix(dtm_polsat))
+freq <- sort(colSums(as.matrix(dtm_polsat)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
 word_freq <- data.frame(word=names(freq), freq=freq)
@@ -293,16 +305,24 @@ top_n(word_freq, n=10, freq) %>%
   geom_bar(stat="identity") +
   geom_text(aes(label=freq), position=position_dodge(width=0.9), vjust=-0.25)
 
-#usuniecie wyrazow zwiazanych z tematem
-corpus_pap = tm_map(corpus_pap, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
+#redukcja
+dtm_polsat = removeSparseTerms(dtm_polsat, 0.99)
+inspect(dtm_polsat)
 
-#macierz dokument-term
-dtm = DocumentTermMatrix(corpus_pap)
-inspect(dtm)
-dtm = removeSparseTerms(dtm, 0.99)
-inspect(dtm)
+######################################################################################
+#--WYSTEPOWANIE NAZW PARTII-----------------------------------------------------------
+######################################################################################
+#korpus jako ramka danych
+corpus_polsat_df<-data.frame(text = sapply(corpus_polsat, as.character), stringsAsFactors = FALSE)
 
-#-----
+date_cols<-articles_polsat%>%
+  dplyr::select(year, month, day, url)
+
+corpus_polsat_df<-cbind(corpus_polsat_df, date_cols)
+
+body_words <- corpus_polsat_df %>%
+  unnest_tokens(word_s, text, token = "words")
+
 articles_per_day <- articles_polsat %>%
   count(year, month, day) %>%
   ungroup() %>%
