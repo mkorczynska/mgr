@@ -1,5 +1,6 @@
-###POBIERANIE ARTYKULOW---------------------------------------------------------------
-###BIBLIOTEKI-------------------------------------------------------------------------
+######################################################################################
+#--BIBLIOTEKI-------------------------------------------------------------------------
+######################################################################################
 install.packages("rvest")
 install.packages("tidyverse")
 install.packages("stringr")
@@ -42,7 +43,10 @@ library(textclean)
 
 path<-getwd()
 setwd(path)
-####################################POBRANIE ARTYKULOW######################################
+
+######################################################################################
+#--ZAPISYWANIE TEKSTOW----------------------------------------------------------------
+######################################################################################
 url_pap_1 <-"https://www.pap.pl/aktualnosci/index%2C1%2C%2Cwybory-parlamentarne.html?page="
 
 pages_pap <- 24
@@ -98,7 +102,9 @@ articles_pap <- pap_links %>%
 
 saveRDS(articles_pap, file = "articles_pap.RDS")
 
-##############################UTWORZENIE KORPUSU##############################################
+######################################################################################
+#--UTWORZENIE KORPUSU-----------------------------------------------------------------
+######################################################################################
 articles_pap <- readRDS("articles_pap.RDS")
 datatable(articles_pap)
 
@@ -113,12 +119,14 @@ articles_pap <- articles_pap %>%
          year = year(date),
          hour = hour(date))
 
+#wykres czestosci publikowania
 articles_pap %>%
   count(year, month, day) %>%
-  ggplot() +
-  geom_col(aes(make_date(year, month, day), n), fill="lightblue", color = "gray50") +
+  ggplot(aes(make_date(year, month, day), n)) +
+  geom_bar(stat="identity") +
   scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
-  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  geom_text(aes(label=n), position=position_dodge(width=0.9), vjust=-0.25)
 
 corpus_pap<-cbind(articles_pap$title, articles_pap$lead, articles_pap$body)
 corpus_pap<-as.data.frame(corpus_pap)
@@ -127,7 +135,7 @@ corpus_pap<-unite(corpus_pap, "text", c("title", "lead", "body"), sep=" ")
 
 datatable(corpus_pap)
 
-#partie
+#wczytanie listy zarejestrowanych komitetow
 komitety<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
 komitety_pap<-komitety
 
@@ -140,12 +148,16 @@ for(i in 1:nrow(komitety_pap)){
 }
 
 summary(komitety_pap)
+komitety_pap_pelne<-komitety_pap%>%slice_head(n=86)
+kppf<-komitety_pap_pelne%>%filter(V3=="TRUE")
 
-#nazwy_komitety_pap<-komitety_pap%>%
-#  filter(V3 == "TRUE")
+komitety_pap_skroty<-komitety_pap%>%slice_tail(n=86)
+kpsf<-komitety_pap_skroty%>%filter(V3=="TRUE")
 
+komitety_pap_ogol<-inner_join(kppf, kpsf, by="Skrót")
+
+#zastapienie nazw komitetow i odmienionych nazw partii akronimami
 corpus_pap <- mgsub(corpus_pap, komitety$X.U.FEFF.Nazwa, komitety$Skrót, safe = TRUE)
-
 corpus_pap<-corpus_pap%>%
   mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
   mutate(text = gsub("Prawa i Sprawiedliwości", "pis", text))%>%
@@ -182,7 +194,10 @@ corpus_pap<-VCorpus(VectorSource(corpus_pap))
 
 save.corpus.to.files(corpus_pap, filename = "new_corpus_pap")
 
-#######################OCZYSZCZANIE KORPUSU###########################################
+######################################################################################
+#--OCZYSZCZANIE KORPUSU---------------------------------------------------------------
+######################################################################################
+
 #----------------------FUNKCJE-----------------------------------------------#
 #funkcja do usuwania konkretnych slow, wyrazen
 delete_pattern<-content_transformer(function(x, pattern){
@@ -194,7 +209,7 @@ stem_word <- function(word_to_stem) {
   stem_dictionary %>% filter(word == word_to_stem) %>% .$stem %>% .[1]
 }
 #----------------------------------------------------------------------------#
-load(file="corpus_pap.rda")
+load(file="new_corpus_pap.rda")
 bigcorp<-corpus_pap
 
 stoplista<-stopwords("pl", source = "stopwords-iso")
@@ -261,7 +276,10 @@ corpus_pap = tm_map(corpus_pap, removeWords, stopwords("pl", source = "stopwords
 corpus_pap = tm_map(corpus_pap, stripWhitespace)
 
 save.corpus.to.files(corpus_gazeta, filename = "new_corpus_pap_c_s")
-#-----------------------------------------------------------------
+
+######################################################################################
+#--DTM, LISTA FREKWENCYJNA------------------------------------------------------------
+######################################################################################
 #wczytanie korpusu po oczyszczeniu
 load(file="new_corpus_pap_c_s.rda")
 corpus_pap<-bigcorp
@@ -269,18 +287,20 @@ corpus_pap<-bigcorp
 #macierz dokument-term
 dtm = DocumentTermMatrix(corpus_pap)
 inspect(dtm)
-dtm = removeSparseTerms(dtm, 0.99)
-
-freq <- colSums(as.matrix(dtm))
-ord <- order(freq)   
 
 #czestosc slow
 freq <- colSums(as.matrix(dtm))
 freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
-word_freq <- data.frame(freq=freq)
+word_freq <- data.frame(word=names(freq), freq=freq)
 datatable(word_freq)
+
+#wykres frekwencji
+top_n(word_freq, n=10, freq) %>%
+  ggplot(., aes(x=reorder(word, -freq), y=freq))+
+  geom_bar(stat="identity") +
+  geom_text(aes(label=freq), position=position_dodge(width=0.9), vjust=-0.25)
 
 #usuniecie wyrazow zwiazanych z tematem
 corpus_pap = tm_map(corpus_pap, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
@@ -289,32 +309,29 @@ corpus_pap = tm_map(corpus_pap, removeWords, c("wybory", "wyborczy", "parlamenta
 dtm = DocumentTermMatrix(corpus_pap)
 inspect(dtm)
 dtm = removeSparseTerms(dtm, 0.99)
+inspect(dtm)
 
-freq <- colSums(as.matrix(dtm))
-ord <- order(freq)   
+######################################################################################
+#--WYSTEPOWANIE NAZW PARTII-----------------------------------------------------------
+######################################################################################
+#korpus jako ramka danych
+corpus_pap_df<-data.frame(text = sapply(corpus_pap, as.character), stringsAsFactors = FALSE)
 
-#czestosc slow
-freq <- colSums(as.matrix(dtm))
-freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+date_cols<-articles_pap%>%
+  dplyr::select(year, month, day, url)
 
-#ramka ze slowami i ich frekwencja
-word_freq <- data.frame(freq=freq)
-datatable(word_freq)
+corpus_pap_df<-cbind(corpus_pap_df, date_cols)
 
-freq_1 <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
-wf <- data.frame(word=names(freq_1), freq_1=freq_1)
+body_words <- corpus_pap_df %>%
+  unnest_tokens(word_s, text, token = "words")
 
-subset(wf, freq_1>500)%>%
-  ggplot() +
-  geom_bar(data=wf, aes(word, freq), stat="identity", fill="darkred", colour="darkgreen")
-#-----
 articles_per_day <- articles_pap %>%
   count(year, month, day) %>%
   ungroup() %>%
   rename(n_arts = n)
 
 body_words %>%
-  filter(word_s %in% c("pis", "ko", "lewica", "psl")) %>%
+  filter(word_s %in% c("pis", "ko", "psl", "sld", "konf")) %>%
   count(year, month, day, word_s) %>%
   ungroup() %>%
   rename(n_words = n) %>%
@@ -325,16 +342,18 @@ body_words %>%
   ggplot() +
   # bar = liczba tesktów
   geom_bar(data = articles_per_day, aes(make_date(year, month, day), n_arts),
-           stat="identity",
-           fill = "gray80") +
+           stat="identity") +
   # line = liczba słów
-  geom_point(aes(date, n_words_plot, color = word_s), size = 2) +
+  geom_point(aes(date, n_words_plot, color = word_s, shape=word_s), size = 4) +
   theme(legend.position = "bottom")
-########################################LDA#############################################
+
+######################################################################################
+#--LDA--------------------------------------------------------------------------------
+######################################################################################
 #wybor liczby tematow w lda
 results_1 <- FindTopicsNumber(
   dtm,
-  topics = seq(from = 2, to = 10, by = 2),
+  topics = seq(from = 2, to = 30, by = 2),
   metrics = c("Arun2010", "Deveaud2014"),
   method = "Gibbs",
   mc.cores = 4L,
@@ -343,7 +362,7 @@ results_1 <- FindTopicsNumber(
 
 results_2 <- FindTopicsNumber(
   dtm,
-  topics = seq(from = 2, to = 10, by = 2),
+  topics = seq(from = 2, to = 30, by = 2),
   metrics = c("Griffiths2004", "CaoJuan2009"),
   method = "Gibbs",
   mc.cores = 4L,
@@ -354,37 +373,24 @@ results_2 <- FindTopicsNumber(
 FindTopicsNumber_plot(results_1)
 FindTopicsNumber_plot(results_2)
 
-datatable(results_100)
-
 #lda
-lda_pap <- LDA(dtm, k = 10, method = "Gibbs")
-#zapisanie wspolczynnikow beta dla kazdego slowa i tematu
+lda_pap <- LDA(dtm, k = 10, method = "Gibbs", control=list(seed=1234))
+
+#zapisanie beta i gamma
 topics_words_pap <- tidy(lda_pap, matrix = "beta")
 topics_docs_pap <- tidy(lda_pap, matrix = "gamma")
 
-
-tidy(dtm) %>%
-  filter(document == 6) %>%
-  arrange(desc(count))
-
-
-# get classification of each document
+#klasyfikacja kazdego dokumentu
 doc_classes <- topics_docs_pap %>%
   group_by(document) %>%
   top_n(1) %>%
   ungroup()
 
+#liczba dokumentow w temacie
 doc_classes%>% count(topic)
 
-# which were we most uncertain about?
-doc_classes %>%
-  arrange(gamma)
-
-elo<-topics_docs_pap %>%
-  group_by(topic) 
-
-#wykres slow dla poszczegolnych tematow
-topics_pap %>%
+#wykres slow dla poszczegolnych tematow (ogolne skale)
+topics_words_pap %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
   ungroup() %>%
@@ -396,13 +402,13 @@ topics_pap %>%
   coord_flip()
 
 #topowe slowa w kazdym z tematow
-ap_top_terms <- topics_pap %>%
+ap_top_terms <- topics_words_pap %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
   ungroup() %>%
   arrange(topic, -beta)
 
-#wykres topowych slow ze wspolczynnikami
+#wykres topowych slow ze wspolczynnikami (kazdy ma skale beta)
 ap_top_terms %>%
   mutate(term = reorder(term, beta)) %>%
   ggplot(aes(term, beta, fill = factor(topic))) +
@@ -410,43 +416,17 @@ ap_top_terms %>%
   facet_wrap(~ topic, scales = "free") +
   coord_flip()
 
-#beta spread
-beta_spread <- topics_pap %>%
-  mutate(topic = paste0("topic", topic)) %>%
-  spread(topic, beta) %>%
-  filter(topic1 > .001 | topic2 > .001) %>%
-  mutate(log_ratio = log2(topic2 / topic1))
-
-#wykres dla beta spread
-beta_spread %>%
-  group_by(direction = log_ratio > 0) %>%
-  top_n(15, abs(log_ratio)) %>%
-  ungroup() %>%
-  mutate(term = reorder(term, log_ratio)) %>%
-  ggplot(aes(term, log_ratio)) +
-  geom_col() +
-  labs(y = "Log2 ratio of beta in topic 2 / topic 1") +
-  coord_flip()
-
 assignments<-augment(lda_pap, dtm)
-########################################ANLIZA SENTYMENTU###############################
-#articles<-data.frame(text = sapply(bigcorp, as.character), stringsAsFactors = FALSE)
 
-some_cols<-articles_pap%>%
-  select(year, month, day, url)
-
-corp<-data.frame(text = sapply(corpus_pap, as.character), stringsAsFactors = FALSE)
-
-corp<-cbind(corp, some_cols)
-
-body_words <- corp %>%
-  unnest_tokens(word_s, text, token = "words")
+######################################################################################
+#--ANALIZA SENTYMENTU-----------------------------------------------------------------
+######################################################################################
 
 pl_words_sentiment <- read_csv("pl_words.csv")
 #pl_words_sentiment <- pl_words_sentiment[, 2:8]
 
 text_words_sentiment <- inner_join(body_words %>%
-                                     select(word_s, year, month, day),
+                                     dplyr::select(word_s, year, month, day),
                                    pl_words_sentiment,
                                    by = c("word_s" = "word"))
 
@@ -470,7 +450,7 @@ text_words_sentiment %>%
   facet_wrap(~category, ncol=1)
 
 text_words_sentiment %>%
-  select(-word_s, -category) %>%
+  dplyr::select(-word_s, -category) %>%
   gather(key = sent_category, value = score,
          `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`) %>%
   ggplot() +
@@ -480,12 +460,12 @@ text_words_sentiment %>%
 
 # lista artykułów z wybranymi słowami w lidzie
 art_list <- body_words %>%
-  filter(word_s %in% c("pis", "ko", "lewica", "psl")) %>%
-  select(url, word_s) %>%
+  filter(word_s %in% c("pis", "ko", "sld", "psl", "konf")) %>%
+  dplyr::select(url, word_s) %>%
   distinct()
 
 
-body_sentiment <- inner_join(body_words %>% select(word_s, year, month, day, url),
+body_sentiment <- inner_join(body_words %>% dplyr::select(word_s, year, month, day, url),
                              pl_words_sentiment,
                              by = c("word_s" = "word")) %>%
   # łączymy dane o sentymencie z listą artykułów i słowami z leadu
@@ -509,6 +489,76 @@ body_sentiment %>%
   facet_wrap(~word_s.y, ncol = 3) +
   theme(legend.position = "bottom")
 
+###################################################
+###################################################
+as_tidy <- tidy(dtm)
+
+text_words_sentiment <- inner_join(as_tidy %>%
+                                     dplyr::select(document, term),
+                                   pl_words_sentiment,
+                                   by = c("term" = "word"))
+
+oceny<-text_words_sentiment %>%
+  count(document, category) %>%
+  ungroup() %>%
+  group_by(document) %>%
+  ungroup() %>%
+  filter(!category %in% c("N", "U")) %>%
+  mutate(category = case_when(.$category == "A" ~ "Anger",
+                              .$category == "H" ~ "Happiness",
+                              .$category == "S" ~ "Sadness",
+                              .$category == "D" ~ "Disgust",
+                              .$category == "F" ~ "Fear"))
+
+# lista artykułów z wybranymi słowami w lidzie
+art_list <- body_words %>%
+  filter(word_s %in% c("pis", "ko", "sld", "psl", "konf")) %>%
+  dplyr::select(url, word_s) %>%
+  distinct()
+
+
+body_sentiment <- inner_join(body_words %>% dplyr::select(word_s, year, month, day, url),
+                             pl_words_sentiment,
+                             by = c("word_s" = "word")) %>%
+  # łączymy dane o sentymencie z listą artykułów i słowami z leadu
+  left_join(art_list, by = c("url" = "url")) %>%
+  filter(!is.na(word_s.y)) %>%
+  # pivot tabelki
+  gather(key = sent_category, value = score,
+         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`)
+
+body_sentiment %>%
+  ggplot() +
+  geom_boxplot(aes(sent_category, score, color = word_s.y)) +
+  theme(legend.position = "bottom")
+
+
+body_sentiment %>%
+  filter(word_s.y != "pis") %>% # za mało jest tekstów, wychodzi pusty wykres
+  ggplot() +
+  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
+              se = FALSE) +
+  facet_wrap(~word_s.y, ncol = 3) +
+  theme(legend.position = "bottom")
+
+
+as_tidy <- tidy(dtm)
+
+# Using bing lexicon: you can use other as well(nrc/afinn)
+bing <- get_sentiments("bing")
+as_bing_words <- inner_join(as_tidy,bing,by = c("term"="word"))
+# check positive and negative words 
+as_bing_words  
+
+# set index for documents number 
+index <- as_bing_words%>%mutate(doc=as.numeric(document))
+# count by index and sentiment
+index <- index %>% count(sentiment,doc)
+# spread into positives and negavtives
+index <- index %>% spread(sentiment,n,fill=0)
+# add polarity scorer
+index <- index %>% mutate(polarity = positive-negative)
+index
 ###########################################
 install.packages("Compositional")
 install.packages("MCMCpack")
@@ -516,13 +566,31 @@ install.packages("MCMCpack")
 library(Compositional)
 library(MCMCpack)
 
-draws_1 <- rdirichlet(100, c(.1, .1, .1))
-draws_2 <- rdirichlet(200, c(.5, .5, .5))
+draws_1 <- rdirichlet(100, c(0.1, 0.1, 0.1))
+draws_2 <- rdirichlet(200, c(0.5, 0.5, 0.5))
 draws_3 <- rdirichlet(200, c(1, 1, 1))
 draws_4 <- rdirichlet(200, c(5, 5, 5))
 par(mfrow=c(2,2))
 bivt.contour(draws_1)
+legend("topleft", legend=expression(paste(alpha, "=(0.1, 0.1, 0.1)")),
+       cex=1.1, bg="transparent", box.lty=0)
 bivt.contour(draws_2)
+legend("topleft", legend=expression(paste(alpha, "=(0.5, 0.5, 0.5)")),
+       cex=1.1, bg="transparent", box.lty=0)
 bivt.contour(draws_3)
+legend("topleft", legend=expression(paste(alpha, "=(1, 1, 1)")),
+       cex=1.1, bg="transparent", box.lty=0)
 bivt.contour(draws_4)
+legend("topleft", legend=expression(paste(alpha, "=(5, 5, 5)")),
+      cex=1.1, bg="transparent", box.lty=0)
 
+#####
+
+ramka<-data.frame("zrodlo" = rep(c("PAP", "gazeta.pl", "TVN24", "polsatnews", "interia"), each=3), 
+                  "nazwa" = rep(c("pelna", "skrot", "obie"), 5), 
+                  "liczba"=c(0,38,4,1,4,4,1,64,10,0,21,2,1,60,14))
+
+ggplot(ramka, aes(fill=nazwa, y=liczba, x=zrodlo)) + 
+  geom_bar(position="stack", stat="identity")+
+  scale_fill_grey(start=0.6, end=0.1)+
+  geom_text(data=subset(ramka, liczba != 0), aes(label = liczba), position = position_stack(vjust = 0.5), colour = "white")

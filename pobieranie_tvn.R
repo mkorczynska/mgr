@@ -125,16 +125,17 @@ articles_tvn <- articles_tvn %>%
          year = year(date),
          hour = hour(date))
 
-articles_tvn %>%
-  count(year, month, day) %>%
-  ggplot() +
-  geom_col(aes(make_date(year, month, day), n), fill="lightblue", color = "gray50") +
-  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
-  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
-
 articles_tvn<-articles_tvn%>%
   mutate(body = gsub("Autor.*", "", body))%>%
   mutate(body = gsub("CZYTAJ WIĘCEJ", "", body))
+
+articles_tvn %>%
+  count(year, month, day) %>%
+  ggplot(aes(make_date(year, month, day), n)) +
+  geom_bar(stat="identity") +
+  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  geom_text(aes(label=n), position=position_dodge(width=0.9), vjust=-0.25)
 
 corpus_tvn<-cbind(articles_tvn$title, articles_tvn$lead, articles_tvn$body)
 corpus_tvn<-as.data.frame(corpus_tvn)
@@ -142,7 +143,8 @@ colnames(corpus_tvn)<-c("title", "lead", "body")
 corpus_tvn<-unite(corpus_tvn, "text", c("title", "lead", "body"), sep=" ")
 
 datatable(corpus_tvn)
-#partie
+
+#wczytanie listy zarejestrowanych komitetow
 komitety<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
 komitety_tvn<-komitety
 
@@ -155,12 +157,16 @@ for(i in 1:nrow(komitety_tvn)){
 }
 
 summary(komitety_tvn)
+komitety_tvn_pelne<-komitety_tvn%>%slice_head(n=86)
+ktpf<-komitety_tvn_pelne%>%filter(V3=="TRUE")
 
-#nazwy_komitety_pap<-komitety_pap%>%
-#  filter(V3 == "TRUE")
+komitety_tvn_skroty<-komitety_tvn%>%slice_tail(n=86)
+ktsf<-komitety_tvn_skroty%>%filter(V3=="TRUE")
 
+komitety_tvn_ogol<-inner_join(ktpf, ktsf, by="Skrót")
+
+#zastapienie nazw komitetow i odmienionych nazw partii akronimami
 corpus_tvn <- mgsub(corpus_tvn, komitety$X.U.FEFF.Nazwa, komitety$Skrót, safe = TRUE)
-
 corpus_tvn<-corpus_tvn%>%
   mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
   mutate(text = gsub("Prawa i Sprawiedliwości", "pis", text))%>%
@@ -284,37 +290,29 @@ corpus_tvn<-bigcorp
 #macierz dokument-term
 dtm = DocumentTermMatrix(corpus_tvn)
 inspect(dtm)
-dtm = removeSparseTerms(dtm, 0.99)
-
-freq <- colSums(as.matrix(dtm))
-ord <- order(freq)   
 
 #czestosc slow
 freq <- colSums(as.matrix(dtm))
 freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
-word_freq <- data.frame(freq=freq)
+word_freq <- data.frame(word=names(freq), freq=freq)
 datatable(word_freq)
+
+#wykres frekwencji
+top_n(word_freq, n=10, freq) %>%
+  ggplot(., aes(x=reorder(word, -freq), y=freq))+
+  geom_bar(stat="identity") +
+  geom_text(aes(label=freq), position=position_dodge(width=0.9), vjust=-0.25)
 
 #usuniecie wyrazow zwiazanych z tematem
-corpus_tvn = tm_map(corpus_tvn, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
+corpus_pap = tm_map(corpus_pap, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
 
 #macierz dokument-term
-dtm = DocumentTermMatrix(corpus_tvn)
+dtm = DocumentTermMatrix(corpus_pap)
 inspect(dtm)
 dtm = removeSparseTerms(dtm, 0.99)
-
-freq <- colSums(as.matrix(dtm))
-ord <- order(freq)   
-
-#czestosc slow
-freq <- colSums(as.matrix(dtm))
-freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
-
-#ramka ze slowami i ich frekwencja
-word_freq <- data.frame(freq=freq)
-datatable(word_freq)
+inspect(dtm)
 
 #-----
 articles_per_day <- articles_tvn %>%

@@ -115,13 +115,6 @@ articles_gazeta <- articles_gazeta %>%
          year = year(date),
          hour = hour(date))
 
-articles_gazeta %>%
-  count(year, month, day) %>%
-  ggplot() +
-  geom_col(aes(make_date(year, month, day), n), fill="lightblue", color = "gray50") +
-  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
-  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
-
 articles_gazeta<-articles_gazeta%>%
   mutate(body = gsub("REKLAMA.*;});}","", body))%>%
   mutate(body = gsub("Zobacz wideo", "", body))
@@ -130,30 +123,44 @@ articles_gazeta<-articles_gazeta%>%
   mutate(body = gsub("\n    if.*});\n    }\n", "", body))%>%
   mutate(body = gsub("\n    if.*});\n    }", "", body))
 
+articles_gazeta %>%
+  count(year, month, day) %>%
+  ggplot(aes(make_date(year, month, day), n)) +
+  geom_bar(stat="identity") +
+  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  geom_text(aes(label=n), position=position_dodge(width=0.9), vjust=-0.25)
+
 corpus_gazeta<-cbind(articles_gazeta$title, articles_gazeta$lead, articles_gazeta$body)
 corpus_gazeta<-as.data.frame(corpus_gazeta)
 colnames(corpus_gazeta)<-c("title", "lead", "body")
 corpus_gazeta<-unite(corpus_gazeta, "text", c("title", "lead", "body"), sep=" ")
 
 datatable(corpus_gazeta)
-#partie
+
+#wczytanie listy zarejestrowanych komitetow
 komitety<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
+komitety_gazeta<-komitety
 
-#for(i in 1:nrow(komitety_pap)){
-#  if(grepl(komitety_pap[i, 1], corpus_pap)==TRUE){
-#    komitety_pap[i, 3]=TRUE
-#  }else{
-#    komitety_pap[i, 3]=FALSE
-#  }
-#}
+for(i in 1:nrow(komitety_gazeta)){
+  if(grepl(komitety_gazeta[i, 1], corpus_gazeta)==TRUE){
+    komitety_gazeta[i, 3]=TRUE
+  }else{
+    komitety_gazeta[i, 3]=FALSE
+  }
+}
 
-#summary(komitety_pap)
+summary(komitety_gazeta)
+komitety_gazeta_pelne<-komitety_gazeta%>%slice_head(n=86)
+kgpf<-komitety_gazeta_pelne%>%filter(V3=="TRUE")
 
-#nazwy_komitety_pap<-komitety_pap%>%
-#  filter(V3 == "TRUE")
+komitety_gazeta_skroty<-komitety_gazeta%>%slice_tail(n=86)
+kgsf<-komitety_gazeta_skroty%>%filter(V3=="TRUE")
 
+komitety_gazeta_ogol<-inner_join(kgpf, kgsf, by="Skrót")
+
+#zastapienie nazw komitetow i odmienionych nazw partii akronimami
 corpus_gazeta <- mgsub(corpus_gazeta, komitety$X.U.FEFF.Nazwa, komitety$Skrót, safe = TRUE)
-
 corpus_gazeta<-corpus_gazeta%>%
   mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
   mutate(text = gsub("Prawa i Sprawiedliwości", "pis", text))%>%
@@ -275,50 +282,41 @@ corpus_gazeta = tm_map(corpus_gazeta, content_transformer(tolower))
 corpus_gazeta = tm_map(corpus_gazeta, removeWords, stopwords("pl", source = "stopwords-iso"))
 corpus_gazeta = tm_map(corpus_gazeta, stripWhitespace)
 
-save.corpus.to.files(corpus_gazeta, filename = "corpus_gazeta_c_s")
+save.corpus.to.files(corpus_gazeta, filename = "new_corpus_gazeta_c_s")
 
 ######################################################################################
 #--DTM, LISTA FREKWENCYJNA------------------------------------------------------------
 ######################################################################################
 #wczytanie korpusu po oczyszczeniu
-load(file="corpus_gazeta_c_s.rda")
+load(file="new_corpus_gazeta_c_s.rda")
 corpus_gazeta<-bigcorp
 
 #macierz dokument-term
 dtm = DocumentTermMatrix(corpus_gazeta)
 inspect(dtm)
-dtm = removeSparseTerms(dtm, 0.99)
-
-freq <- colSums(as.matrix(dtm))
-ord <- order(freq)   
 
 #czestosc slow
 freq <- colSums(as.matrix(dtm))
 freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
-word_freq <- data.frame(freq=freq)
+word_freq <- data.frame(word=names(freq), freq=freq)
 datatable(word_freq)
+
+#wykres frekwencji
+top_n(word_freq, n=10, freq) %>%
+  ggplot(., aes(x=reorder(word, -freq), y=freq))+
+  geom_bar(stat="identity") +
+  geom_text(aes(label=freq), position=position_dodge(width=0.9), vjust=-0.25)
 
 #usuniecie wyrazow zwiazanych z tematem
-corpus_gazeta = tm_map(corpus_gazeta, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", 
-                                                     "komitet", "lista", "partia", "okrąg"))
+corpus_pap = tm_map(corpus_pap, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
 
 #macierz dokument-term
-dtm = DocumentTermMatrix(corpus_gazeta)
+dtm = DocumentTermMatrix(corpus_pap)
 inspect(dtm)
 dtm = removeSparseTerms(dtm, 0.99)
-
-freq <- colSums(as.matrix(dtm))
-ord <- order(freq)   
-
-#czestosc slow
-freq <- colSums(as.matrix(dtm))
-freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
-
-#ramka ze slowami i ich frekwencja
-word_freq <- data.frame(freq=freq)
-datatable(word_freq)
+inspect(dtm)
 
 #korpus jako ramka danych
 corpus_gazeta_df<-data.frame(text = sapply(corpus_gazeta, as.character), stringsAsFactors = FALSE)

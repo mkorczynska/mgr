@@ -122,13 +122,6 @@ articles_interia <- articles_interia %>%
          year = year(date),
          hour = hour(date))
 
-articles_interia %>%
-  count(year, month, day) %>%
-  ggplot() +
-  geom_col(aes(make_date(year, month, day), n), fill="lightblue", color = "gray50") +
-  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
-  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
-
 articles_interia<-articles_interia%>%
   mutate(body = gsub("var Criteo.*Reklama", "", body))%>%
   mutate(body = gsub("CDATA.*block", "", body ))%>%
@@ -137,13 +130,22 @@ articles_interia<-articles_interia%>%
   mutate(body = gsub("Zdjęcie.*PAP", "", body))%>%
   mutate(body = gsub("Wideo.*srcsign", "", body))
 
+articles_interia %>%
+  count(year, month, day) %>%
+  ggplot(aes(make_date(year, month, day), n)) +
+  geom_bar(stat="identity") +
+  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  geom_text(aes(label=n), position=position_dodge(width=0.9), vjust=-0.25)
+
 corpus_interia<-cbind(articles_interia$title, articles_interia$lead, articles_interia$body)
 corpus_interia<-as.data.frame(corpus_interia)
 colnames(corpus_interia)<-c("title", "lead", "body")
 corpus_interia<-unite(corpus_interia, "text", c("title", "lead", "body"), sep=" ")
 
 datatable(corpus_interia)
-#partie
+
+#wczytanie listy zarejestrowanych komitetow
 komitety<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
 komitety_interia<-komitety
 
@@ -156,12 +158,16 @@ for(i in 1:nrow(komitety_interia)){
 }
 
 summary(komitety_interia)
+komitety_interia_pelne<-komitety_interia%>%slice_head(n=86)
+kipf<-komitety_interia_pelne%>%filter(V3=="TRUE")
 
-#nazwy_komitety_pap<-komitety_pap%>%
-#  filter(V3 == "TRUE")
+komitety_interia_skroty<-komitety_interia%>%slice_tail(n=86)
+kisf<-komitety_interia_skroty%>%filter(V3=="TRUE")
 
+komitety_interia_ogol<-inner_join(kipf, kisf, by="Skrót")
+
+#zastapienie nazw komitetow i odmienionych nazw partii akronimami
 corpus_interia <- mgsub(corpus_interia, komitety$X.U.FEFF.Nazwa, komitety$Skrót, safe = TRUE)
-
 corpus_interia<-corpus_interia%>%
   mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
   mutate(text = gsub("Prawa i Sprawiedliwości", "pis", text))%>%
@@ -286,37 +292,29 @@ corpus_interia<-bigcorp
 #macierz dokument-term
 dtm = DocumentTermMatrix(corpus_interia)
 inspect(dtm)
-dtm = removeSparseTerms(dtm, 0.9)
-
-freq <- colSums(as.matrix(dtm))
-ord <- order(freq)   
 
 #czestosc slow
 freq <- colSums(as.matrix(dtm))
 freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
 
 #ramka ze slowami i ich frekwencja
-word_freq <- data.frame(freq=freq)
+word_freq <- data.frame(word=names(freq), freq=freq)
 datatable(word_freq)
+
+#wykres frekwencji
+top_n(word_freq, n=10, freq) %>%
+  ggplot(., aes(x=reorder(word, -freq), y=freq))+
+  geom_bar(stat="identity") +
+  geom_text(aes(label=freq), position=position_dodge(width=0.9), vjust=-0.25)
 
 #usuniecie wyrazow zwiazanych z tematem
-corpus_interia = tm_map(corpus_interia, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
+corpus_pap = tm_map(corpus_pap, removeWords, c("wybory", "wyborczy", "parlamentarny", "okręg", "kandydat", "wyborca", "głos", "komitet", "lista"))
 
 #macierz dokument-term
-dtm = DocumentTermMatrix(corpus_interia)
+dtm = DocumentTermMatrix(corpus_pap)
 inspect(dtm)
 dtm = removeSparseTerms(dtm, 0.99)
-
-freq <- colSums(as.matrix(dtm))
-ord <- order(freq)   
-
-#czestosc slow
-freq <- colSums(as.matrix(dtm))
-freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
-
-#ramka ze slowami i ich frekwencja
-word_freq <- data.frame(freq=freq)
-datatable(word_freq)
+inspect(dtm)
 
 #-----
 articles_per_day <- articles_interia %>%
