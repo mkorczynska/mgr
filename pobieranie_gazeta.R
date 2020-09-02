@@ -354,37 +354,46 @@ body_words %>%
 #--LDA--------------------------------------------------------------------------------
 ######################################################################################
 #wybor liczby tematow w lda
-results_1 <- FindTopicsNumber(
-  dtm,
-  topics = seq(from = 2, to = 20, by = 2),
-  metrics = c("Arun2010", "Deveaud2014"),
-  method = "Gibbs",
+results_1_gazeta <- FindTopicsNumber(
+  dtm_gazeta,
+  topics = seq(from = 2, to = 10, by = 2),
+  metrics = c("Arun2010", "Deveaud2014", "CaoJuan2009"),
+  method = "VEM",
   mc.cores = 4L,
   verbose = TRUE
 )
 
-results_2 <- FindTopicsNumber(
-  dtm,
-  topics = seq(from = 2, to = 20, by = 2),
-  metrics = c("Griffiths2004", "CaoJuan2009"),
+results_2_gazeta <- FindTopicsNumber(
+  dtm_gazeta,
+  topics = seq(from = 2, to = 10, by = 2),
+  metrics = c("Arun2010", "Deveaud2014", "Griffiths2004", "CaoJuan2009"),
   method = "Gibbs",
   mc.cores = 4L,
   verbose = TRUE
 )
 
 #wykres pozwalajacy wybrac liczbe tematow
-FindTopicsNumber_plot(results_1)
-FindTopicsNumber_plot(results_2)
-
-datatable(results_1)
+FindTopicsNumber_plot(results_1_gazeta)
+FindTopicsNumber_plot(results_2_gazeta)
 
 #lda
-lda <- LDA(dtm, k = 14)
-#zapisanie wspolczynnikow beta dla kazdego slowa i tematu
-topics <- tidy(lda, matrix = "beta")
+lda_gazeta <- LDA(dtm_gazeta, k=10, method = "VEM", control=list(seed=1234))
 
-#wykres slow dla poszczegolnych tematow
-topics %>%
+#zapisanie beta i gamma
+topics_words_gazeta <- tidy(lda_gazeta, matrix = "beta")
+topics_docs_gazeta <- tidy(lda_gazeta, matrix = "gamma")
+
+#klasyfikacja kazdego dokumentu
+doc_classes_gazeta <- topics_docs_gazeta %>%
+  group_by(document) %>%
+  top_n(1) %>%
+  ungroup()
+
+#liczba dokumentow w temacie
+doc_classes_gazeta%>% count(topic)
+
+#wykres slow dla poszczegolnych tematow (ogolne skale)
+topics_words_gazeta %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
   ungroup() %>%
@@ -396,37 +405,21 @@ topics %>%
   coord_flip()
 
 #topowe slowa w kazdym z tematow
-ap_top_terms <- topics %>%
+ap_top_terms_gazeta <- topics_words_gazeta %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
   ungroup() %>%
   arrange(topic, -beta)
 
-#wykres topowych slow ze wspolczynnikami
-ap_top_terms %>%
+#wykres topowych slow ze wspolczynnikami (kazdy ma skale beta)
+ap_top_terms_gazeta %>%
   mutate(term = reorder(term, beta)) %>%
   ggplot(aes(term, beta, fill = factor(topic))) +
   geom_col(show.legend = FALSE) +
   facet_wrap(~ topic, scales = "free") +
   coord_flip()
 
-#beta spread
-beta_spread <- topics %>%
-  mutate(topic = paste0("topic", topic)) %>%
-  spread(topic, beta) %>%
-  filter(topic1 > .001 | topic2 > .001) %>%
-  mutate(log_ratio = log2(topic2 / topic1))
-
-#wykres dla beta spread
-beta_spread %>%
-  group_by(direction = log_ratio > 0) %>%
-  top_n(15, abs(log_ratio)) %>%
-  ungroup() %>%
-  mutate(term = reorder(term, log_ratio)) %>%
-  ggplot(aes(term, log_ratio)) +
-  geom_col() +
-  labs(y = "Log2 ratio of beta in topic 2 / topic 1") +
-  coord_flip()
+assignments_gazeta<-augment(lda_gazeta, dtm_gazeta)
 
 ######################################################################################
 #--ANALIZA SENTYMENTU-----------------------------------------------------------------

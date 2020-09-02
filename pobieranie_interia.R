@@ -359,39 +359,51 @@ body_words %>%
   # line = liczba słów
   geom_point(aes(date, n_words_plot, color = word_s), size = 2) +
   theme(legend.position = "bottom")
-########################################LDA#############################################
+
+######################################################################################
+#--LDA--------------------------------------------------------------------------------
+######################################################################################
 #wybor liczby tematow w lda
-results_1 <- FindTopicsNumber(
-  dtm,
+results_1_interia <- FindTopicsNumber(
+  dtm_interia,
   topics = seq(from = 2, to = 10, by = 2),
-  metrics = c("Arun2010", "Deveaud2014"),
-  method = "Gibbs",
+  metrics = c("Arun2010", "Deveaud2014", "CaoJuan2009"),
+  method = "VEM",
   mc.cores = 4L,
   verbose = TRUE
 )
 
-results_2 <- FindTopicsNumber(
-  dtm,
+results_2_interia <- FindTopicsNumber(
+  dtm_interia,
   topics = seq(from = 2, to = 10, by = 2),
-  metrics = c("Griffiths2004", "CaoJuan2009"),
+  metrics = c("Arun2010", "Deveaud2014", "Griffiths2004", "CaoJuan2009"),
   method = "Gibbs",
   mc.cores = 4L,
   verbose = TRUE
 )
 
 #wykres pozwalajacy wybrac liczbe tematow
-FindTopicsNumber_plot(results_1)
-FindTopicsNumber_plot(results_2)
-
-datatable(results_100)
+FindTopicsNumber_plot(results_1_interia)
+FindTopicsNumber_plot(results_2_interia)
 
 #lda
-lda_20_2 <- LDA(dtm, k = 15)
-#zapisanie wspolczynnikow beta dla kazdego slowa i tematu
-topics_20 <- tidy(lda_20_2, matrix = "beta")
+lda_interia <- LDA(dtm_interia, k=10, method = "VEM", control=list(seed=1234))
 
-#wykres slow dla poszczegolnych tematow
-topics_20 %>%
+#zapisanie beta i gamma
+topics_words_interia <- tidy(lda_interia, matrix = "beta")
+topics_docs_interia <- tidy(lda_interia, matrix = "gamma")
+
+#klasyfikacja kazdego dokumentu
+doc_classes_interia <- topics_docs_interia %>%
+  group_by(document) %>%
+  top_n(1) %>%
+  ungroup()
+
+#liczba dokumentow w temacie
+doc_classes_interia%>% count(topic)
+
+#wykres slow dla poszczegolnych tematow (ogolne skale)
+topics_words_interia %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
   ungroup() %>%
@@ -403,39 +415,25 @@ topics_20 %>%
   coord_flip()
 
 #topowe slowa w kazdym z tematow
-ap_top_terms <- topics_20 %>%
+ap_top_terms_interia <- topics_words_interia %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
   ungroup() %>%
   arrange(topic, -beta)
 
-#wykres topowych slow ze wspolczynnikami
-ap_top_terms %>%
+#wykres topowych slow ze wspolczynnikami (kazdy ma skale beta)
+ap_top_terms_interia %>%
   mutate(term = reorder(term, beta)) %>%
   ggplot(aes(term, beta, fill = factor(topic))) +
   geom_col(show.legend = FALSE) +
   facet_wrap(~ topic, scales = "free") +
   coord_flip()
 
-#beta spread
-beta_spread <- topics_20 %>%
-  mutate(topic = paste0("topic", topic)) %>%
-  spread(topic, beta) %>%
-  filter(topic1 > .001 | topic2 > .001) %>%
-  mutate(log_ratio = log2(topic2 / topic1))
+assignments_interia<-augment(lda_interia, dtm_interia)
 
-#wykres dla beta spread
-beta_spread %>%
-  group_by(direction = log_ratio > 0) %>%
-  top_n(15, abs(log_ratio)) %>%
-  ungroup() %>%
-  mutate(term = reorder(term, log_ratio)) %>%
-  ggplot(aes(term, log_ratio)) +
-  geom_col() +
-  labs(y = "Log2 ratio of beta in topic 2 / topic 1") +
-  coord_flip()
-
-########################################ANLIZA SENTYMENTU###############################
+######################################################################################
+#--ANALIZA SENTYMENTU-----------------------------------------------------------------
+######################################################################################
 #articles<-data.frame(text = sapply(bigcorp, as.character), stringsAsFactors = FALSE)
 
 some_cols<-articles_interia%>%

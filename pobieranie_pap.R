@@ -346,16 +346,16 @@ body_words %>%
 #--LDA--------------------------------------------------------------------------------
 ######################################################################################
 #wybor liczby tematow w lda
-results_1 <- FindTopicsNumber(
+results_1_pap <- FindTopicsNumber(
   dtm_pap,
   topics = seq(from = 2, to = 10, by = 2),
-  metrics = c("Arun2010", "Deveaud2014", "Griffiths2004", "CaoJuan2009"),
+  metrics = c("Arun2010", "Deveaud2014", "CaoJuan2009"),
   method = "VEM",
   mc.cores = 4L,
   verbose = TRUE
 )
 
-results_2 <- FindTopicsNumber(
+results_2_pap <- FindTopicsNumber(
   dtm_pap,
   topics = seq(from = 2, to = 10, by = 2),
   metrics = c("Arun2010", "Deveaud2014", "Griffiths2004", "CaoJuan2009"),
@@ -365,10 +365,11 @@ results_2 <- FindTopicsNumber(
 )
 
 #wykres pozwalajacy wybrac liczbe tematow
-FindTopicsNumber_plot(results_1)
-FindTopicsNumber_plot(results_2)
+FindTopicsNumber_plot(results_1_pap)
+FindTopicsNumber_plot(results_2_pap)
 
 #lda
+lda_pap <- LDA(dtm_pap, k = 8, method = "VEM", control=list(seed=1234))
 lda_pap <- LDA(dtm_pap, k = 8, method = "Gibbs", control=list(seed=1234))
 
 #zapisanie beta i gamma
@@ -376,13 +377,13 @@ topics_words_pap <- tidy(lda_pap, matrix = "beta")
 topics_docs_pap <- tidy(lda_pap, matrix = "gamma")
 
 #klasyfikacja kazdego dokumentu
-doc_classes <- topics_docs_pap %>%
+doc_classes_pap <- topics_docs_pap %>%
   group_by(document) %>%
   top_n(1) %>%
   ungroup()
 
 #liczba dokumentow w temacie
-doc_classes%>% count(topic)
+doc_classes_pap%>% count(topic)
 
 #wykres slow dla poszczegolnych tematow (ogolne skale)
 topics_words_pap %>%
@@ -397,21 +398,21 @@ topics_words_pap %>%
   coord_flip()
 
 #topowe slowa w kazdym z tematow
-ap_top_terms <- topics_words_pap %>%
+ap_top_terms_pap <- topics_words_pap %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
   ungroup() %>%
   arrange(topic, -beta)
 
 #wykres topowych slow ze wspolczynnikami (kazdy ma skale beta)
-ap_top_terms %>%
+ap_top_terms_pap %>%
   mutate(term = reorder(term, beta)) %>%
   ggplot(aes(term, beta, fill = factor(topic))) +
   geom_col(show.legend = FALSE) +
   facet_wrap(~ topic, scales = "free") +
   coord_flip()
 
-assignments<-augment(lda_pap, dtm)
+assignments_pap<-augment(lda_pap, dtm_pap)
 
 ######################################################################################
 #--ANALIZA SENTYMENTU-----------------------------------------------------------------
@@ -581,11 +582,11 @@ legend("topleft", legend=expression(paste(alpha, "=(5, 5, 5)")),
 
 #####
 
-ramka<-data.frame("zrodlo" = rep(c("PAP", "gazeta.pl", "TVN24", "polsatnews", "interia"), each=3), 
-                  "nazwa" = rep(c("pelna", "skrot", "obie"), 5), 
-                  "liczba"=c(0,38,4,1,4,4,1,64,10,0,21,2,1,60,14))
+ramka<-data.frame("Źródło" = rep(c("PAP", "gazeta.pl", "TVN24", "Polsat News", "Interia"), each=3), 
+                  "Nazwa" = rep(c("Pełna", "Skrót", "Obie"), 5), 
+                  "Liczba"=c(0,38,4,1,4,4,1,64,10,0,21,2,1,60,14))
 
-ggplot(ramka, aes(fill=nazwa, y=liczba, x=zrodlo)) + 
+ggplot(ramka, aes(fill=Nazwa, y=Liczba, x=Źródło)) + 
   geom_bar(position="stack", stat="identity")+
   scale_fill_grey(start=0.6, end=0.1)+
-  geom_text(data=subset(ramka, liczba != 0), aes(label = liczba), position = position_stack(vjust = 0.5), colour = "white")
+  geom_text(data=subset(ramka, Liczba != 0), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")
