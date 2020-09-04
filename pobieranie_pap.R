@@ -20,6 +20,8 @@ install.packages("tidyr")
 install.packages("progress")
 install.packages("corpus")
 install.packages("textclean")
+install.packages("treemap")
+install.packages("RColorBrewer")
 
 library(rvest)
 library(tidyverse)
@@ -40,6 +42,8 @@ library(tidyr)
 library(progress)
 library(corpus)
 library(textclean)
+library(treemap)
+library(RColorBrewer)
 
 path<-getwd()
 setwd(path)
@@ -128,19 +132,19 @@ articles_pap %>%
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
   geom_text(aes(label=n), position=position_dodge(width=0.9), vjust=-0.25)
 
-corpus_pap<-cbind(articles_pap$title, articles_pap$lead, articles_pap$body)
-corpus_pap<-as.data.frame(corpus_pap)
-colnames(corpus_pap)<-c("title", "lead", "body")
-corpus_pap<-unite(corpus_pap, "text", c("title", "lead", "body"), sep=" ")
+full_articles_pap<-cbind(articles_pap$title, articles_pap$lead, articles_pap$body)
+full_articles_pap<-as.data.frame(full_articles_pap)
+colnames(full_articles_pap)<-c("title", "lead", "body")
+full_articles_pap<-unite(full_articles_pap, "text", c("title", "lead", "body"), sep=" ")
 
-datatable(corpus_pap)
+datatable(full_articles_pap)
 
 #wczytanie listy zarejestrowanych komitetow
 komitety<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
 komitety_pap<-komitety
 
 for(i in 1:nrow(komitety_pap)){
-  if(grepl(komitety_pap[i, 1], corpus_pap)==TRUE){
+  if(grepl(komitety_pap[i, 1], full_articles_pap)==TRUE){
     komitety_pap[i, 3]=TRUE
   }else{
     komitety_pap[i, 3]=FALSE
@@ -157,8 +161,8 @@ kpsf<-komitety_pap_skroty%>%filter(V3=="TRUE")
 komitety_pap_ogol<-inner_join(kppf, kpsf, by="Skrót")
 
 #zastapienie nazw komitetow i odmienionych nazw partii akronimami
-corpus_pap <- mgsub(corpus_pap, komitety$X.U.FEFF.Nazwa, komitety$Skrót, safe = TRUE)
-corpus_pap<-corpus_pap%>%
+full_articles_pap <- mgsub(full_articles_pap, komitety$X.U.FEFF.Nazwa, komitety$Skrót, safe = TRUE)
+full_articles_pap<-full_articles_pap%>%
   mutate(text = gsub("Prawo i Sprawiedliwość", "pis", text))%>%
   mutate(text = gsub("Prawa i Sprawiedliwości", "pis", text))%>%
   mutate(text = gsub("Prawu i Sprawiedliwości", "pis", text))%>%
@@ -186,9 +190,9 @@ corpus_pap<-corpus_pap%>%
   mutate(text = gsub("Konfederacją", "konf", text))%>%
   mutate(text = gsub("Konfederacjo", "konf", text))
 
-datatable(corpus_pap)
+datatable(full_articles_pap)
 
-corpus_pap<-tibble(corpus_pap)
+corpus_pap<-tibble(full_articles_pap)
 corpus_pap<-unlist(corpus_pap)
 corpus_pap<-VCorpus(VectorSource(corpus_pap))
 
@@ -285,7 +289,7 @@ load(file="new_corpus_pap_c_s.rda")
 corpus_pap<-bigcorp
 
 #macierz dokument-term
-dtm_pap = DocumentTermMatrix(corpus_pap)
+dtm_pap=DocumentTermMatrix(corpus_pap, control=list(wordLengths=c(1,Inf)))
 inspect(dtm_pap)
 
 #czestosc slow
@@ -419,143 +423,178 @@ assignments_pap<-augment(lda_pap, dtm_pap)
 ######################################################################################
 
 pl_words_sentiment <- read_csv("pl_words.csv")
-#pl_words_sentiment <- pl_words_sentiment[, 2:8]
+pl_words_sentiment <- read_csv("nawl-analysis.csv")
 
-text_words_sentiment <- inner_join(body_words %>%
-                                     dplyr::select(word_s, year, month, day),
-                                   pl_words_sentiment,
-                                   by = c("word_s" = "word"))
+as_tidy_pap <- tidy(dtm_pap)
 
-text_words_sentiment<-text_words_sentiment%>%
-  mutate(date=make_date(year, month, day))
+text_words_sentiment_pap <- inner_join(as_tidy_pap %>%
+                                         dplyr::select(document, term),
+                                       pl_words_sentiment,
+                                       by = c("term" = "word"))
 
-text_words_sentiment %>%
-  count(year, month, day, category) %>%
-  ungroup() %>%
-  group_by(year, month, day) %>%
-  mutate(p = 100*n/sum(n)) %>%
-  ungroup() %>%
-  filter(!category %in% c("N", "U")) %>%
-  mutate(category = case_when(.$category == "A" ~ "Anger",
-                              .$category == "H" ~ "Happiness",
-                              .$category == "S" ~ "Sadness",
-                              .$category == "D" ~ "Disgust",
-                              .$category == "F" ~ "Fear")) %>%
-  ggplot() +
-  geom_col(aes(make_date(year, month, day), p, fill=category), show.legend = FALSE) +
-  facet_wrap(~category, ncol=1)
-
-text_words_sentiment %>%
-  dplyr::select(-word_s, -category) %>%
-  gather(key = sent_category, value = score,
-         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`) %>%
-  ggplot() +
-  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
-              show.legend = FALSE) +
-  facet_wrap(~sent_category, scale = "free_y", ncol=1)
-
-# lista artykułów z wybranymi słowami w lidzie
-art_list <- body_words %>%
-  filter(word_s %in% c("pis", "ko", "sld", "psl", "konf")) %>%
-  dplyr::select(url, word_s) %>%
-  distinct()
-
-
-body_sentiment <- inner_join(body_words %>% dplyr::select(word_s, year, month, day, url),
-                             pl_words_sentiment,
-                             by = c("word_s" = "word")) %>%
-  # łączymy dane o sentymencie z listą artykułów i słowami z leadu
-  left_join(art_list, by = c("url" = "url")) %>%
-  filter(!is.na(word_s.y)) %>%
-  # pivot tabelki
-  gather(key = sent_category, value = score,
-         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`)
-
-body_sentiment %>%
-  ggplot() +
-  geom_boxplot(aes(sent_category, score, color = word_s.y)) +
-  theme(legend.position = "bottom")
-
-
-body_sentiment %>%
-  filter(word_s.y != "pis") %>% # za mało jest tekstów, wychodzi pusty wykres
-  ggplot() +
-  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
-              se = FALSE) +
-  facet_wrap(~word_s.y, ncol = 3) +
-  theme(legend.position = "bottom")
-
-###################################################
-###################################################
-as_tidy <- tidy(dtm)
-
-text_words_sentiment <- inner_join(as_tidy %>%
-                                     dplyr::select(document, term),
-                                   pl_words_sentiment,
-                                   by = c("term" = "word"))
-
-oceny<-text_words_sentiment %>%
+oceny_pap<-text_words_sentiment_pap %>%
   count(document, category) %>%
   ungroup() %>%
   group_by(document) %>%
   ungroup() %>%
-  filter(!category %in% c("N", "U")) %>%
-  mutate(category = case_when(.$category == "A" ~ "Anger",
-                              .$category == "H" ~ "Happiness",
-                              .$category == "S" ~ "Sadness",
-                              .$category == "D" ~ "Disgust",
-                              .$category == "F" ~ "Fear"))
+  filter(!category %in% c("U", "N")) %>%
+  mutate(category = case_when(.$category == "A" ~ "Złość",
+                              .$category == "H" ~ "Szczęście",
+                              .$category == "S" ~ "Smutek",
+                              .$category == "D" ~ "Wstręt",
+                              .$category == "F" ~ "Strach"))
 
-# lista artykułów z wybranymi słowami w lidzie
-art_list <- body_words %>%
-  filter(word_s %in% c("pis", "ko", "sld", "psl", "konf")) %>%
-  dplyr::select(url, word_s) %>%
-  distinct()
+nr<-as.data.frame(seq(1:150))
+colnames(nr)<-c("nr")
+new_articles_pap<-cbind(nr, articles_pap)
+new_articles_pap$nr<-as.character(new_articles_pap$nr)
 
+emocje_pap <- inner_join(new_articles_pap %>%
+                           dplyr::select(nr, year, month, day),
+                         oceny_pap,
+                         by = c("nr" = "document"))
 
-body_sentiment <- inner_join(body_words %>% dplyr::select(word_s, year, month, day, url),
-                             pl_words_sentiment,
-                             by = c("word_s" = "word")) %>%
-  # łączymy dane o sentymencie z listą artykułów i słowami z leadu
-  left_join(art_list, by = c("url" = "url")) %>%
-  filter(!is.na(word_s.y)) %>%
-  # pivot tabelki
-  gather(key = sent_category, value = score,
-         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`)
+emocje_pap<-emocje_pap%>%
+  mutate(date=make_date(year, month, day))
 
-body_sentiment %>%
-  ggplot() +
-  geom_boxplot(aes(sent_category, score, color = word_s.y)) +
+colnames(emocje_pap)<-c("Dokument", "Rok", "Miesiac", "Dzien", "Emocje", "Liczba", "Data" )
+nowe<-emocje_pap%>%
+  group_by(Emocje, Data)%>%
+  summarise(Liczba = sum(Liczba))
+
+ggplot(nowe, aes(fill=Emocje, y=Liczba, x=Data)) + 
+  geom_bar(position="stack", stat="identity")+
+  scale_fill_manual(values=c("#222E50", "#BAA898", "#848586", "#C2847A", "#280003"))+
+  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  geom_text(data=subset(nowe, Emocje!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
   theme(legend.position = "bottom")
 
 
-body_sentiment %>%
-  filter(word_s.y != "pis") %>% # za mało jest tekstów, wychodzi pusty wykres
-  ggplot() +
-  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
-              se = FALSE) +
-  facet_wrap(~word_s.y, ncol = 3) +
+list<-as_tidy_pap%>%
+  filter(term %in% c("pis", "ko", "sld", "psl", "konf"))
+
+partie<-inner_join(list%>%select(document, term),
+                   oceny_pap,
+                   by = c("document" = "document"))
+
+emocje_partie<-partie%>%
+  group_by(term, category)%>%
+  summarise(Liczba = sum(n))
+
+ggplot(emocje_partie, aes(fill=category, y=Liczba, x=term)) + 
+  geom_bar(position="stack", stat="identity")+
+  scale_fill_manual(values=c("#222E50", "#BAA898", "#848586", "#C2847A", "#280003"))+
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  geom_text(data=subset(emocje_partie, category!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
   theme(legend.position = "bottom")
 
+par(mfrow=c(2,3))
 
-as_tidy <- tidy(dtm)
+ko<-emocje_partie%>%filter(term=="ko")
 
-# Using bing lexicon: you can use other as well(nrc/afinn)
-bing <- get_sentiments("bing")
-as_bing_words <- inner_join(as_tidy,bing,by = c("term"="word"))
-# check positive and negative words 
-as_bing_words  
+radar_ko <- as.data.frame(t(matrix(ko$Liczba)))
+colnames(radar_ko) <- ko$category
 
-# set index for documents number 
-index <- as_bing_words%>%mutate(doc=as.numeric(document))
-# count by index and sentiment
-index <- index %>% count(sentiment,doc)
-# spread into positives and negavtives
-index <- index %>% spread(sentiment,n,fill=0)
-# add polarity scorer
-index <- index %>% mutate(polarity = positive-negative)
-index
-###########################################
+radar_ko <- rbind(rep(250, 5) , rep(0, 5) , radar_ko)
+
+radarchart(radar_ko, axistype=1 , 
+           
+           #custom polygon
+           pcol="#0a122a" , pfcol="#0a122aCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(50,250,50), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="ko",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+pis<-emocje_partie%>%filter(term=="pis")
+
+radar_pis <- as.data.frame(t(matrix(pis$Liczba)))
+colnames(radar_pis) <- pis$category
+
+radar_pis <- rbind(rep(500, 5) , rep(0, 5) , radar_pis)
+
+radarchart(radar_pis, axistype=1 , 
+           
+           #custom polygon
+           pcol="#574ae2" , pfcol="#574ae2CC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(100,500,100), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="pis",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+sld<-emocje_partie%>%filter(term=="sld")
+
+radar_sld <- as.data.frame(t(matrix(sld$Liczba)))
+colnames(radar_sld) <- sld$category
+
+radar_sld <- rbind(rep(180, 5) , rep(0, 5) , radar_sld)
+
+radarchart(radar_sld, axistype=1 , 
+           
+           #custom polygon
+           pcol="#f21b3f" , pfcol="#f21b3fCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(36,180,36), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="sld",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+konf<-emocje_partie%>%filter(term=="konf")
+
+radar_konf <- as.data.frame(t(matrix(konf$Liczba)))
+colnames(radar_konf) <- konf$category
+
+radar_konf <- rbind(rep(80, 5) , rep(0, 5) , radar_konf)
+
+radarchart(radar_konf, axistype=1 , 
+           
+           #custom polygon
+           pcol="#f0a202" , pfcol="#f0a202CC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(16,80,16), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="konf",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+
+psl<-emocje_partie%>%filter(term=="psl")
+
+radar_psl <- as.data.frame(t(matrix(psl$Liczba)))
+colnames(radar_psl) <- psl$category
+
+radar_psl <- rbind(rep(160, 5) , rep(0, 5) , radar_psl)
+
+radarchart(radar_psl, axistype=1 , 
+           
+           #custom polygon
+           pcol="#6da34d" , pfcol="#6da34dCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(32,160,32), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="psl",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+######################################################################################
+#--DODATKI-----------------------------------------------------------------
+######################################################################################
 install.packages("Compositional")
 install.packages("MCMCpack")
 
@@ -590,3 +629,31 @@ ggplot(ramka, aes(fill=Nazwa, y=Liczba, x=Źródło)) +
   geom_bar(position="stack", stat="identity")+
   scale_fill_grey(start=0.6, end=0.1)+
   geom_text(data=subset(ramka, Liczba != 0), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")
+
+
+
+####TO PONIZEJ NIE######KONIEC TEGO CO OK###
+calosc_partie<-rbind(radar_ko[3,], radar_konf[3,], radar_pis[3,], radar_psl[3,], radar_sld[3,])
+rownames(calosc_partie) <- c("ko", "konf", "pis", "psl","sld")
+calosc_partie <- rbind(rep(500,5) , rep(0,5) , calosc_partie)
+
+# Color vector
+colors_border=c("#0a122a", "#574ae2", "#f21b3f", "#f0a202", "#6da34d")
+colors_in=c("#0a122aCC", "#574ae2CC", "#f21b3fCC", "#f0a202CC", "#6da34dCC")
+
+# plot with default options:
+radarchart(calosc_partie  , axistype=1 , 
+            #custom polygon
+            pcol=colors_border , pfcol=colors_in , plwd=4 , plty=1,
+            #custom the grid
+            cglcol="grey", cglty=1, axislabcol="grey", caxislabels=seq(0,500,100), cglwd=0.8,
+            #custom labels
+            vlcex=0.8 
+)
+
+# Add a legend
+legend(x=0.7, y=1, legend = rownames(calosc_partie[-c(1,2),]), bty = "n", pch=20 , col=colors_in , text.col = "grey", cex=1.2, pt.cex=3)
+
+########################################################################
+########################################################################
+########################################################################
