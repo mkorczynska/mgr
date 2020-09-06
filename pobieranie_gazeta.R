@@ -131,19 +131,19 @@ articles_gazeta %>%
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
   geom_text(aes(label=n), position=position_dodge(width=0.9), vjust=-0.25)
 
-corpus_gazeta<-cbind(articles_gazeta$title, articles_gazeta$lead, articles_gazeta$body)
-corpus_gazeta<-as.data.frame(corpus_gazeta)
-colnames(corpus_gazeta)<-c("title", "lead", "body")
-corpus_gazeta<-unite(corpus_gazeta, "text", c("title", "lead", "body"), sep=" ")
+full_articles_gazeta<-cbind(articles_gazeta$title, articles_gazeta$lead, articles_gazeta$body)
+full_articles_gazeta<-as.data.frame(full_articles_gazeta)
+colnames(full_articles_gazeta)<-c("title", "lead", "body")
+full_articles_gazeta<-unite(full_articles_gazeta, "text", c("title", "lead", "body"), sep=" ")
 
-datatable(corpus_gazeta)
+datatable(full_articles_gazeta)
 
 #wczytanie listy zarejestrowanych komitetow
 komitety<-read.csv2("komitety_sejm_senat.csv", header = TRUE, encoding = "UTF-8", stringsAsFactors = FALSE)
 komitety_gazeta<-komitety
 
 for(i in 1:nrow(komitety_gazeta)){
-  if(grepl(komitety_gazeta[i, 1], corpus_gazeta)==TRUE){
+  if(grepl(komitety_gazeta[i, 1], full_articles_gazeta)==TRUE){
     komitety_gazeta[i, 3]=TRUE
   }else{
     komitety_gazeta[i, 3]=FALSE
@@ -292,7 +292,7 @@ load(file="new_corpus_gazeta_c_s.rda")
 corpus_gazeta<-bigcorp
 
 #macierz dokument-term
-dtm_gazeta = DocumentTermMatrix(corpus_gazeta)
+dtm_gazeta = DocumentTermMatrix(corpus_gazeta, control=list(wordLengths=c(1,Inf)))
 inspect(dtm_gazeta)
 
 #czestosc slow
@@ -401,7 +401,7 @@ topics_words_gazeta %>%
   mutate(term = factor(term, levels = unique(term))) %>%
   ggplot() +
   geom_col(aes(term, beta, fill = factor(topic)), color = "gray50", show.legend = FALSE) +
-  facet_wrap(~topic, scales = "free_y") +
+  facet_wrap(~topic, scales = "free_y", ncol = 4) +
   coord_flip()
 
 #topowe slowa w kazdym z tematow
@@ -416,7 +416,7 @@ ap_top_terms_gazeta %>%
   mutate(term = reorder(term, beta)) %>%
   ggplot(aes(term, beta, fill = factor(topic))) +
   geom_col(show.legend = FALSE) +
-  facet_wrap(~ topic, scales = "free") +
+  facet_wrap(~ topic, scales = "free", ncol=4) +
   coord_flip()
 
 assignments_gazeta<-augment(lda_gazeta, dtm_gazeta)
@@ -426,68 +426,202 @@ assignments_gazeta<-augment(lda_gazeta, dtm_gazeta)
 ######################################################################################
 
 pl_words_sentiment <- read_csv("pl_words.csv")
-#pl_words_sentiment <- pl_words_sentiment[, 2:8]
+pl_words_sentiment <- read_csv("nawl-analysis.csv")
 
-text_words_sentiment <- inner_join(body_words %>%
-                                     select(word_s, year, month, day),
-                                   pl_words_sentiment,
-                                   by = c("word_s" = "word"))
+as_tidy_gazeta <- tidy(dtm_gazeta)
 
-text_words_sentiment<-text_words_sentiment%>%
+text_words_sentiment_gazeta <- inner_join(as_tidy_gazeta %>%
+                                         dplyr::select(document, term),
+                                       pl_words_sentiment,
+                                       by = c("term" = "word"))
+
+emotions_gazeta<-text_words_sentiment_gazeta %>%
+  count(document, category) %>%
+  ungroup() %>%
+  group_by(document) %>%
+  ungroup() %>%
+  filter(!category %in% c("U", "N")) %>%
+  mutate(category = case_when(.$category == "A" ~ "Złość",
+                              .$category == "H" ~ "Szczęście",
+                              .$category == "S" ~ "Smutek",
+                              .$category == "D" ~ "Wstręt",
+                              .$category == "F" ~ "Strach"))
+
+
+all_emotions_gazeta<-emotions_gazeta%>%
+  group_by(category)%>%
+  summarise(sum=sum(n))
+
+all_emotions_gazeta$zrodlo<-rep("gazeta.pl", 5)
+
+
+nr_gazeta<-as.data.frame(seq(1:nrow(articles_gazeta)))
+colnames(nr_gazeta)<-c("nr")
+new_articles_gazeta<-cbind(nr_gazeta, articles_gazeta)
+new_articles_gazeta$nr<-as.character(new_articles_gazeta$nr)
+
+articles_emotions_gazeta <- inner_join(new_articles_gazeta %>%
+                                      dplyr::select(nr, year, month, day),
+                                    emotions_gazeta,
+                                    by = c("nr" = "document"))
+
+articles_emotions_gazeta<-articles_emotions_gazeta%>%
   mutate(date=make_date(year, month, day))
 
-text_words_sentiment %>%
-  count(year, month, day, category) %>%
-  ungroup() %>%
-  group_by(year, month, day) %>%
-  mutate(p = 100*n/sum(n)) %>%
-  ungroup() %>%
-  filter(!category %in% c("N", "U")) %>%
-  mutate(category = case_when(.$category == "A" ~ "Anger",
-                              .$category == "H" ~ "Happiness",
-                              .$category == "S" ~ "Sadness",
-                              .$category == "D" ~ "Disgust",
-                              .$category == "F" ~ "Fear")) %>%
-  ggplot() +
-  geom_col(aes(make_date(year, month, day), p, fill=category), show.legend = FALSE) +
-  facet_wrap(~category, ncol=1)
+colnames(articles_emotions_gazeta)<-c("Dokument", "Rok", "Miesiac", "Dzien", "Emocje", "Liczba", "Data" )
+grouped_emotions_gazeta<-articles_emotions_gazeta%>%
+  group_by(Emocje, Data)%>%
+  summarise(Liczba = sum(Liczba))
 
-text_words_sentiment %>%
-  select(-word_s, -category) %>%
-  gather(key = sent_category, value = score,
-         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`) %>%
-  ggplot() +
-  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
-              show.legend = FALSE) +
-  facet_wrap(~sent_category, scale = "free_y", ncol=1)
-
-# lista artykułów z wybranymi słowami w lidzie
-art_list <- body_words %>%
-  filter(word_s %in% c("pis", "ko", "lewica", "psl")) %>%
-  select(url_gazeta, word_s) %>%
-  distinct()
-
-
-body_sentiment <- inner_join(body_words %>% select(word_s, year, month, day, url_gazeta),
-                             pl_words_sentiment,
-                             by = c("word_s" = "word")) %>%
-  # łączymy dane o sentymencie z listą artykułów i słowami z leadu
-  left_join(art_list, by = c("url_gazeta" = "url_gazeta")) %>%
-  filter(!is.na(word_s.y)) %>%
-  # pivot tabelki
-  gather(key = sent_category, value = score,
-         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`)
-
-body_sentiment %>%
-  ggplot() +
-  geom_boxplot(aes(sent_category, score, color = word_s.y)) +
+ggplot(grouped_emotions_gazeta, aes(fill=Emocje, y=Liczba, x=Data)) + 
+  geom_bar(position="stack", stat="identity")+
+  scale_fill_manual(values=c("#3d538f", "#BAA898", "#848586", "#C2847A", "#0d0f06"))+
+  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  #geom_text(data=subset(grouped_emotions_gazeta, Emocje!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
   theme(legend.position = "bottom")
 
 
-body_sentiment %>%
-  filter(word_s.y != "pis") %>% # za mało jest tekstów, wychodzi pusty wykres
-  ggplot() +
-  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
-              se = FALSE) +
-  facet_wrap(~word_s.y, ncol = 3) +
+only_parties<-as_tidy_gazeta%>%
+  filter(term %in% c("pis", "ko", "sld", "psl", "konf"))
+
+articles_parties_gazeta<-inner_join(only_parties%>%select(document, term),
+                                 emotions_gazeta,
+                                 by = c("document" = "document"))
+
+emotions_parties_gazeta<-articles_parties_gazeta%>%
+  group_by(term, category)%>%
+  summarise(Liczba = sum(n))
+
+ggplot(emotions_parties_gazeta, aes(fill=category, y=Liczba, x=term)) + 
+  geom_bar(position="stack", stat="identity")+
+  scale_fill_manual(values=c("#222E50", "#BAA898", "#848586", "#C2847A", "#280003"))+
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  geom_text(data=subset(emotions_parties_gazeta, category!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
   theme(legend.position = "bottom")
+
+par(mfrow=c(2,3))
+
+#---
+ko_gazeta<-emotions_parties_gazeta%>%filter(term=="ko")
+
+ko_gazeta<-ko_gazeta%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_ko_gazeta <- as.data.frame(t(matrix(ko_gazeta$procent)))
+colnames(radar_ko_gazeta) <- ko_gazeta$category
+
+radar_ko_gazeta <- rbind(rep(100, 5) , rep(0, 5) , radar_ko_gazeta)
+
+radarchart(radar_ko_gazeta, axistype=1 , 
+           
+           #custom polygon
+           pcol="#0a122a" , pfcol="#0a122aCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="ko",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+#---
+pis_gazeta<-emotions_parties_gazeta%>%filter(term=="pis")
+
+pis_gazeta<-pis_gazeta%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_pis_gazeta <- as.data.frame(t(matrix(pis_gazeta$procent)))
+colnames(radar_pis_gazeta) <- pis_gazeta$category
+
+radar_pis_gazeta <- rbind(rep(100, 5) , rep(0, 5) , radar_pis_gazeta)
+
+radarchart(radar_pis_gazeta, axistype=1 , 
+           
+           #custom polygon
+           pcol="#574ae2" , pfcol="#574ae2CC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="pis",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+#---
+sld_gazeta<-emotions_parties_gazeta%>%filter(term=="sld")
+
+sld_gazeta<-sld_gazeta%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_sld_gazeta <- as.data.frame(t(matrix(sld_gazeta$procent)))
+colnames(radar_sld_gazeta) <- sld_gazeta$category
+
+radar_sld_gazeta <- rbind(rep(100, 5) , rep(0, 5) , radar_sld_gazeta)
+
+radarchart(radar_sld_gazeta, axistype=1 , 
+           
+           #custom polygon
+           pcol="#f21b3f" , pfcol="#f21b3fCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="sld",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+#---
+konf_gazeta<-emotions_parties_gazeta%>%filter(term=="konf")
+
+konf_gazeta<-konf_gazeta%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_konf_gazeta <- as.data.frame(t(matrix(konf_gazeta$procent)))
+colnames(radar_konf_gazeta) <- konf_gazeta$category
+
+radar_konf_gazeta <- rbind(rep(100, 5) , rep(0, 5) , radar_konf_gazeta)
+
+radarchart(radar_konf_gazeta, axistype=1 , 
+           
+           #custom polygon
+           pcol="#f0a202" , pfcol="#f0a202CC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="konf",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+#---
+psl_gazeta<-emotions_parties_gazeta%>%filter(term=="psl")
+
+psl_gazeta<-psl_gazeta%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_psl_gazeta <- as.data.frame(t(matrix(psl_gazeta$procent)))
+colnames(radar_psl_gazeta) <- psl_gazeta$category
+
+radar_psl_gazeta <- rbind(rep(100, 5) , rep(0, 5) , radar_psl_gazeta)
+
+radarchart(radar_psl_gazeta, axistype=1 , 
+           
+           #custom polygon
+           pcol="#6da34d" , pfcol="#6da34dCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="psl",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+######################################################################################
+#--DODATKI-----------------------------------------------------------------
+######################################################################################

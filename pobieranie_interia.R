@@ -302,7 +302,7 @@ load(file="new_corpus_interia_c_s.rda")
 corpus_interia<-bigcorp
 
 #macierz dokument-term
-dtm_interia = DocumentTermMatrix(corpus_interia)
+dtm_interia = DocumentTermMatrix(corpus_interia, control=list(wordLengths=c(1,Inf)))
 inspect(dtm_interia)
 
 #czestosc slow
@@ -434,81 +434,185 @@ assignments_interia<-augment(lda_interia, dtm_interia)
 ######################################################################################
 #--ANALIZA SENTYMENTU-----------------------------------------------------------------
 ######################################################################################
-#articles<-data.frame(text = sapply(bigcorp, as.character), stringsAsFactors = FALSE)
-
-some_cols<-articles_interia%>%
-  select(year, month, day, url)
-
-corp<-data.frame(text = sapply(corpus_interia, as.character), stringsAsFactors = FALSE)
-
-corp<-cbind(corp, some_cols)
-
-body_words <- corp %>%
-  unnest_tokens(word_s, text, token = "words")
 
 pl_words_sentiment <- read_csv("pl_words.csv")
-#pl_words_sentiment <- pl_words_sentiment[, 2:8]
+pl_words_sentiment <- read_csv("nawl-analysis.csv")
 
-text_words_sentiment <- inner_join(body_words %>%
-                                     select(word_s, year, month, day),
-                                   pl_words_sentiment,
-                                   by = c("word_s" = "word"))
+as_tidy_interia <- tidy(dtm_interia)
 
-text_words_sentiment<-text_words_sentiment%>%
+text_words_sentiment_interia <- inner_join(as_tidy_interia %>%
+                                            dplyr::select(document, term),
+                                          pl_words_sentiment,
+                                          by = c("term" = "word"))
+
+emotions_interia<-text_words_sentiment_interia %>%
+  count(document, category) %>%
+  ungroup() %>%
+  group_by(document) %>%
+  ungroup() %>%
+  filter(!category %in% c("U", "N")) %>%
+  mutate(category = case_when(.$category == "A" ~ "Złość",
+                              .$category == "H" ~ "Szczęście",
+                              .$category == "S" ~ "Smutek",
+                              .$category == "D" ~ "Wstręt",
+                              .$category == "F" ~ "Strach"))
+
+
+all_emotions_interia<-emotions_interia%>%
+  group_by(category)%>%
+  summarise(sum=sum(n))
+
+all_emotions_interia$zrodlo<-rep("Interia", 5)
+
+
+nr_interia<-as.data.frame(seq(1:nrow(articles_interia)))
+colnames(nr_interia)<-c("nr")
+new_articles_interia<-cbind(nr_interia, articles_interia)
+new_articles_interia$nr<-as.character(new_articles_interia$nr)
+
+articles_emotions_interia <- inner_join(new_articles_interia %>%
+                                         dplyr::select(nr, year, month, day),
+                                       emotions_interia,
+                                       by = c("nr" = "document"))
+
+articles_emotions_interia<-articles_emotions_interia%>%
   mutate(date=make_date(year, month, day))
 
-text_words_sentiment %>%
-  count(year, month, day, category) %>%
-  ungroup() %>%
-  group_by(year, month, day) %>%
-  mutate(p = 100*n/sum(n)) %>%
-  ungroup() %>%
-  filter(!category %in% c("N", "U")) %>%
-  mutate(category = case_when(.$category == "A" ~ "Anger",
-                              .$category == "H" ~ "Happiness",
-                              .$category == "S" ~ "Sadness",
-                              .$category == "D" ~ "Disgust",
-                              .$category == "F" ~ "Fear")) %>%
-  ggplot() +
-  geom_col(aes(make_date(year, month, day), p, fill=category), show.legend = FALSE) +
-  facet_wrap(~category, ncol=1)
+colnames(articles_emotions_interia)<-c("Dokument", "Rok", "Miesiac", "Dzien", "Emocje", "Liczba", "Data" )
+grouped_emotions_interia<-articles_emotions_interia%>%
+  group_by(Emocje, Data)%>%
+  summarise(Liczba = sum(Liczba))
 
-text_words_sentiment %>%
-  select(-word_s, -category) %>%
-  gather(key = sent_category, value = score,
-         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`) %>%
-  ggplot() +
-  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
-              show.legend = FALSE) +
-  facet_wrap(~sent_category, scale = "free_y", ncol=1)
-
-# lista artykułów z wybranymi słowami w lidzie
-art_list <- body_words %>%
-  filter(word_s %in% c("pis", "ko", "lewica", "psl")) %>%
-  select(url, word_s) %>%
-  distinct()
-
-
-body_sentiment <- inner_join(body_words %>% select(word_s, year, month, day, url),
-                             pl_words_sentiment,
-                             by = c("word_s" = "word")) %>%
-  # łączymy dane o sentymencie z listą artykułów i słowami z leadu
-  left_join(art_list, by = c("url" = "url")) %>%
-  filter(!is.na(word_s.y)) %>%
-  # pivot tabelki
-  gather(key = sent_category, value = score,
-         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`)
-
-body_sentiment %>%
-  ggplot() +
-  geom_boxplot(aes(sent_category, score, color = word_s.y)) +
+ggplot(grouped_emotions_interia, aes(fill=Emocje, y=Liczba, x=Data)) + 
+  geom_bar(position="stack", stat="identity")+
+  scale_fill_manual(values=c("#474747", "#fff570", "#bbcde5", "#40588c", "#b094b3"))+
+  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  #geom_text(data=subset(grouped_emotions_interia, Emocje!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
   theme(legend.position = "bottom")
 
 
-body_sentiment %>%
-  filter(word_s.y != "pis") %>% # za mało jest tekstów, wychodzi pusty wykres
-  ggplot() +
-  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
-              se = FALSE) +
-  facet_wrap(~word_s.y, ncol = 3) +
+only_parties<-as_tidy_interia%>%
+  filter(term %in% c("pis", "ko", "sld", "psl", "konf"))
+
+articles_parties_interia<-inner_join(only_parties%>%select(document, term),
+                                    emotions_interia,
+                                    by = c("document" = "document"))
+
+emotions_parties_interia<-articles_parties_interia%>%
+  group_by(term, category)%>%
+  summarise(Liczba = sum(n))
+
+ggplot(emotions_parties_interia, aes(fill=category, y=Liczba, x=term)) + 
+  geom_bar(position="stack", stat="identity")+
+  scale_fill_manual(values=c("#3d538f", "#BAA898", "#848586", "#C2847A", "#0d0f06"))+
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  geom_text(data=subset(emotions_parties_interia, category!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
   theme(legend.position = "bottom")
+
+par(mfrow=c(2,3))
+
+ko_interia<-emotions_parties_interia%>%filter(term=="ko")
+
+radar_ko_interia <- as.data.frame(t(matrix(ko_interia$Liczba)))
+colnames(radar_ko_interia) <- ko_interia$category
+
+radar_ko_interia <- rbind(rep(1260, 5) , rep(0, 5) , radar_ko_interia)
+
+radarchart(radar_ko_interia, axistype=1, 
+           
+           #custom polygon
+           pcol="#0a122a" , pfcol="#0a122aCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(0,1260, 315), cglwd=1,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="ko",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+pis_interia<-emotions_parties_interia%>%filter(term=="pis")
+
+radar_pis_interia <- as.data.frame(t(matrix(pis_interia$Liczba)))
+colnames(radar_pis_interia) <- pis_interia$category
+
+radar_pis_interia <- rbind(rep(2120, 5) , rep(0, 5) , radar_pis_interia)
+
+radarchart(radar_pis_interia, axistype=1 , 
+           
+           #custom polygon
+           pcol="#574ae2" , pfcol="#574ae2CC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(0,2120,530), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="pis",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+sld_interia<-emotions_parties_interia%>%filter(term=="sld")
+
+radar_sld_interia <- as.data.frame(t(matrix(sld_interia$Liczba)))
+colnames(radar_sld_interia) <- sld_interia$category
+
+radar_sld_interia <- rbind(rep(620, 5) , rep(0, 5) , radar_sld_interia)
+
+radarchart(radar_sld_interia, axistype=1 , 
+           
+           #custom polygon
+           pcol="#f21b3f" , pfcol="#f21b3fCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(0,620,155), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="sld",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+konf_interia<-emotions_parties_interia%>%filter(term=="konf")
+
+radar_konf_interia <- as.data.frame(t(matrix(konf_interia$Liczba)))
+colnames(radar_konf_interia) <- konf_interia$category
+
+radar_konf_interia <- rbind(rep(340, 5) , rep(0, 5) , radar_konf_interia)
+
+radarchart(radar_konf_interia, axistype=1 , 
+           
+           #custom polygon
+           pcol="#f0a202" , pfcol="#f0a202CC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(0,340,85), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="konf",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+
+psl_interia<-emotions_parties_interia%>%filter(term=="psl")
+
+radar_psl_interia <- as.data.frame(t(matrix(psl_interia$Liczba)))
+colnames(radar_psl_interia) <- psl_interia$category
+
+radar_psl_interia <- rbind(rep(600, 5) , rep(0, 5) , radar_psl_interia)
+
+radarchart(radar_psl_interia, axistype=1 , 
+           
+           #custom polygon
+           pcol="#6da34d" , pfcol="#6da34dCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(0,600,150), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="psl",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+######################################################################################
+#--DODATKI-----------------------------------------------------------------
+######################################################################################

@@ -290,7 +290,7 @@ corpus_tvn = tm_map(corpus_tvn, content_transformer(tolower))
 corpus_tvn = tm_map(corpus_tvn, removeWords, stopwords("pl", source = "stopwords-iso"))
 corpus_tvn = tm_map(corpus_tvn, stripWhitespace)
 
-save.corpus.to.files(corpus_gazeta, filename = "new_corpus_tvn_c_s")
+save.corpus.to.files(corpus_tvn, filename = "new_corpus_tvn_c_s")
 
 ######################################################################################
 #--DTM, LISTA FREKWENCYJNA------------------------------------------------------------
@@ -300,7 +300,7 @@ load(file="new_corpus_tvn_c_s.rda")
 corpus_tvn<-bigcorp
 
 #macierz dokument-term
-dtm_tvn = DocumentTermMatrix(corpus_tvn)
+dtm_tvn = DocumentTermMatrix(corpus_tvn, control=list(wordLengths=c(1,Inf)))
 inspect(dtm_tvn)
 
 #czestosc slow
@@ -409,7 +409,7 @@ topics_words_tvn %>%
   mutate(term = factor(term, levels = unique(term))) %>%
   ggplot() +
   geom_col(aes(term, beta, fill = factor(topic)), color = "gray50", show.legend = FALSE) +
-  facet_wrap(~topic, scales = "free_y") +
+  facet_wrap(~topic, scales = "free_y", ncol = 4) +
   coord_flip()
 
 #topowe slowa w kazdym z tematow
@@ -424,7 +424,7 @@ ap_top_terms_tvn %>%
   mutate(term = reorder(term, beta)) %>%
   ggplot(aes(term, beta, fill = factor(topic))) +
   geom_col(show.legend = FALSE) +
-  facet_wrap(~ topic, scales = "free") +
+  facet_wrap(~ topic, scales = "free", ncol = 4) +
   coord_flip()
 
 assignments_tvn<-augment(lda_tvn, dtm_tvn)
@@ -432,81 +432,205 @@ assignments_tvn<-augment(lda_tvn, dtm_tvn)
 ######################################################################################
 #--ANALIZA SENTYMENTU-----------------------------------------------------------------
 ######################################################################################
-#articles<-data.frame(text = sapply(bigcorp, as.character), stringsAsFactors = FALSE)
-
-some_cols<-articles_tvn%>%
-  select(year, month, day, url)
-
-corp<-data.frame(text = sapply(corpus_tvn, as.character), stringsAsFactors = FALSE)
-
-corp<-cbind(corp, some_cols)
-
-body_words <- corp %>%
-  unnest_tokens(word_s, text, token = "words")
 
 pl_words_sentiment <- read_csv("pl_words.csv")
-#pl_words_sentiment <- pl_words_sentiment[, 2:8]
+pl_words_sentiment <- read_csv("nawl-analysis.csv")
 
-text_words_sentiment <- inner_join(body_words %>%
-                                     select(word_s, year, month, day),
-                                   pl_words_sentiment,
-                                   by = c("word_s" = "word"))
+as_tidy_tvn <- tidy(dtm_tvn)
 
-text_words_sentiment<-text_words_sentiment%>%
+text_words_sentiment_tvn <- inner_join(as_tidy_tvn %>%
+                                            dplyr::select(document, term),
+                                          pl_words_sentiment,
+                                          by = c("term" = "word"))
+
+emotions_tvn<-text_words_sentiment_tvn %>%
+  count(document, category) %>%
+  ungroup() %>%
+  group_by(document) %>%
+  ungroup() %>%
+  filter(!category %in% c("U", "N")) %>%
+  mutate(category = case_when(.$category == "A" ~ "Złość",
+                              .$category == "H" ~ "Szczęście",
+                              .$category == "S" ~ "Smutek",
+                              .$category == "D" ~ "Wstręt",
+                              .$category == "F" ~ "Strach"))
+
+
+
+all_emotions_tvn<-emotions_tvn%>%
+  group_by(category)%>%
+  summarise(sum=sum(n))
+
+all_emotions_tvn$zrodlo<-rep("TVN24", 5)
+
+
+nr_tvn<-as.data.frame(seq(1:nrow(articles_tvn)))
+colnames(nr_tvn)<-c("nr")
+new_articles_tvn<-cbind(nr_tvn, articles_tvn)
+new_articles_tvn$nr<-as.character(new_articles_tvn$nr)
+
+articles_emotions_tvn <- inner_join(new_articles_tvn %>%
+                                         dplyr::select(nr, year, month, day),
+                                       emotions_tvn,
+                                       by = c("nr" = "document"))
+
+articles_emotions_tvn<-articles_emotions_tvn%>%
   mutate(date=make_date(year, month, day))
 
-text_words_sentiment %>%
-  count(year, month, day, category) %>%
-  ungroup() %>%
-  group_by(year, month, day) %>%
-  mutate(p = 100*n/sum(n)) %>%
-  ungroup() %>%
-  filter(!category %in% c("N", "U")) %>%
-  mutate(category = case_when(.$category == "A" ~ "Anger",
-                              .$category == "H" ~ "Happiness",
-                              .$category == "S" ~ "Sadness",
-                              .$category == "D" ~ "Disgust",
-                              .$category == "F" ~ "Fear")) %>%
-  ggplot() +
-  geom_col(aes(make_date(year, month, day), p, fill=category), show.legend = FALSE) +
-  facet_wrap(~category, ncol=1)
+colnames(articles_emotions_tvn)<-c("Dokument", "Rok", "Miesiac", "Dzien", "Emocje", "Liczba", "Data" )
+grouped_emotions_tvn<-articles_emotions_tvn%>%
+  group_by(Emocje, Data)%>%
+  summarise(Liczba = sum(Liczba))
 
-text_words_sentiment %>%
-  select(-word_s, -category) %>%
-  gather(key = sent_category, value = score,
-         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`) %>%
-  ggplot() +
-  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
-              show.legend = FALSE) +
-  facet_wrap(~sent_category, scale = "free_y", ncol=1)
-
-# lista artykułów z wybranymi słowami w lidzie
-art_list <- body_words %>%
-  filter(word_s %in% c("pis", "ko", "lewica", "psl")) %>%
-  select(url, word_s) %>%
-  distinct()
-
-
-body_sentiment <- inner_join(body_words %>% select(word_s, year, month, day, url),
-                             pl_words_sentiment,
-                             by = c("word_s" = "word")) %>%
-  # łączymy dane o sentymencie z listą artykułów i słowami z leadu
-  left_join(art_list, by = c("url" = "url")) %>%
-  filter(!is.na(word_s.y)) %>%
-  # pivot tabelki
-  gather(key = sent_category, value = score,
-         `mean Happiness`, `mean Anger`, `mean Sadness`, `mean Fear`, `mean Disgust`)
-
-body_sentiment %>%
-  ggplot() +
-  geom_boxplot(aes(sent_category, score, color = word_s.y)) +
+ggplot(grouped_emotions_tvn, aes(fill=Emocje, y=Liczba, x=Data)) + 
+  geom_bar(position="stack", stat="identity")+
+  scale_fill_manual(values=c("#3d538f", "#BAA898", "#848586", "#C2847A", "#0d0f06"))+
+  scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  #geom_text(data=subset(grouped_emotions_tvn, Emocje!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
   theme(legend.position = "bottom")
 
 
-body_sentiment %>%
-  filter(word_s.y != "pis") %>% # za mało jest tekstów, wychodzi pusty wykres
-  ggplot() +
-  geom_smooth(aes(make_date(year, month, day), score, color = sent_category),
-              se = FALSE) +
-  facet_wrap(~word_s.y, ncol = 3) +
+only_parties<-as_tidy_tvn%>%
+  filter(term %in% c("pis", "ko", "sld", "psl", "konf"))
+
+articles_parties_tvn<-inner_join(only_parties%>%select(document, term),
+                                    emotions_tvn,
+                                    by = c("document" = "document"))
+
+emotions_parties_tvn<-articles_parties_tvn%>%
+  group_by(term, category)%>%
+  summarise(Liczba = sum(n))
+
+ggplot(emotions_parties_tvn, aes(fill=category, y=Liczba, x=term)) + 
+  geom_bar(position="stack", stat="identity")+
+  scale_fill_manual(values=c("#222E50", "#BAA898", "#848586", "#C2847A", "#280003"))+
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
+  geom_text(data=subset(emotions_parties_tvn, category!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
   theme(legend.position = "bottom")
+
+par(mfrow=c(2,3))
+
+#---
+ko_tvn<-emotions_parties_tvn%>%filter(term=="ko")
+
+ko_tvn<-ko_tvn%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_ko_tvn <- as.data.frame(t(matrix(ko_tvn$procent)))
+colnames(radar_ko_tvn) <- ko_tvn$category
+
+radar_ko_tvn <- rbind(rep(100, 5) , rep(0, 5) , radar_ko_tvn)
+
+radarchart(radar_ko_tvn, axistype=1 , 
+           
+           #custom polygon
+           pcol="#0a122a" , pfcol="#0a122aCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="ko",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+#---
+pis_tvn<-emotions_parties_tvn%>%filter(term=="pis")
+
+pis_tvn<-pis_tvn%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_pis_tvn <- as.data.frame(t(matrix(pis_tvn$procent)))
+colnames(radar_pis_tvn) <- pis_tvn$category
+
+radar_pis_tvn <- rbind(rep(100, 5) , rep(0, 5) , radar_pis_tvn)
+
+radarchart(radar_pis_tvn, axistype=1 , 
+           
+           #custom polygon
+           pcol="#574ae2" , pfcol="#574ae2CC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="pis",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+#---
+sld_tvn<-emotions_parties_tvn%>%filter(term=="sld")
+
+sld_tvn<-sld_tvn%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_sld_tvn <- as.data.frame(t(matrix(sld_tvn$procent)))
+colnames(radar_sld_tvn) <- sld_tvn$category
+
+radar_sld_tvn <- rbind(rep(100, 5) , rep(0, 5) , radar_sld_tvn)
+
+radarchart(radar_sld_tvn, axistype=1 , 
+           
+           #custom polygon
+           pcol="#f21b3f" , pfcol="#f21b3fCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="sld",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+#---
+konf_tvn<-emotions_parties_tvn%>%filter(term=="konf")
+
+konf_tvn<-konf_tvn%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_konf_tvn <- as.data.frame(t(matrix(konf_tvn$procent)))
+colnames(radar_konf_tvn) <- konf_tvn$category
+
+radar_konf_tvn <- rbind(rep(100, 5) , rep(0, 5) , radar_konf_tvn)
+
+radarchart(radar_konf_tvn, axistype=1 , 
+           
+           #custom polygon
+           pcol="#f0a202" , pfcol="#f0a202CC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="konf",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+#---
+psl_tvn<-emotions_parties_tvn%>%filter(term=="psl")
+
+psl_tvn<-psl_tvn%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_psl_tvn <- as.data.frame(t(matrix(psl_tvn$procent)))
+colnames(radar_psl_tvn) <- psl_tvn$category
+
+radar_psl_tvn <- rbind(rep(100, 5) , rep(0, 5) , radar_psl_tvn)
+
+radarchart(radar_psl_tvn, axistype=1 , 
+           
+           #custom polygon
+           pcol="#6da34d" , pfcol="#6da34dCC" , plwd=4 , 
+           
+           #custom the grid
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
+           
+           #custom labels
+           vlcex=1.2)
+legend("bottom", legend="psl",
+       cex=1.2, bg="transparent", box.lty=0, text.font=2)
+
+######################################################################################
+#--DODATKI-----------------------------------------------------------------
+######################################################################################

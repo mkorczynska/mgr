@@ -22,6 +22,7 @@ install.packages("corpus")
 install.packages("textclean")
 install.packages("treemap")
 install.packages("RColorBrewer")
+install.packages("fmsb")
 
 library(rvest)
 library(tidyverse)
@@ -44,6 +45,7 @@ library(corpus)
 library(textclean)
 library(treemap)
 library(RColorBrewer)
+library(fmsb)
 
 path<-getwd()
 setwd(path)
@@ -398,7 +400,7 @@ topics_words_pap %>%
   mutate(term = factor(term, levels = unique(term))) %>%
   ggplot() +
   geom_col(aes(term, beta, fill = factor(topic)), color = "gray50", show.legend = FALSE) +
-  facet_wrap(~topic, scales = "free_y") +
+  facet_wrap(~topic, scales = "free_y", ncol = 4) +
   coord_flip()
 
 #topowe slowa w kazdym z tematow
@@ -413,7 +415,7 @@ ap_top_terms_pap %>%
   mutate(term = reorder(term, beta)) %>%
   ggplot(aes(term, beta, fill = factor(topic))) +
   geom_col(show.legend = FALSE) +
-  facet_wrap(~ topic, scales = "free") +
+  facet_wrap(~ topic, scales = "free_y", ncol = 4) +
   coord_flip()
 
 assignments_pap<-augment(lda_pap, dtm_pap)
@@ -432,7 +434,7 @@ text_words_sentiment_pap <- inner_join(as_tidy_pap %>%
                                        pl_words_sentiment,
                                        by = c("term" = "word"))
 
-oceny_pap<-text_words_sentiment_pap %>%
+emotions_pap<-text_words_sentiment_pap %>%
   count(document, category) %>%
   ungroup() %>%
   group_by(document) %>%
@@ -444,148 +446,181 @@ oceny_pap<-text_words_sentiment_pap %>%
                               .$category == "D" ~ "Wstręt",
                               .$category == "F" ~ "Strach"))
 
-nr<-as.data.frame(seq(1:150))
-colnames(nr)<-c("nr")
-new_articles_pap<-cbind(nr, articles_pap)
+
+all_emotions_pap<-emotions_pap%>%
+  group_by(category)%>%
+  summarise(sum=sum(n))
+
+all_emotions_pap$zrodlo<-rep("PAP", 5)
+
+
+nr_pap<-as.data.frame(seq(1:nrow(articles_pap)))
+colnames(nr_pap)<-c("nr")
+new_articles_pap<-cbind(nr_pap, articles_pap)
 new_articles_pap$nr<-as.character(new_articles_pap$nr)
 
-emocje_pap <- inner_join(new_articles_pap %>%
+articles_emotions_pap <- inner_join(new_articles_pap %>%
                            dplyr::select(nr, year, month, day),
-                         oceny_pap,
+                         emotions_pap,
                          by = c("nr" = "document"))
 
-emocje_pap<-emocje_pap%>%
+articles_emotions_pap<-articles_emotions_pap%>%
   mutate(date=make_date(year, month, day))
 
-colnames(emocje_pap)<-c("Dokument", "Rok", "Miesiac", "Dzien", "Emocje", "Liczba", "Data" )
-nowe<-emocje_pap%>%
+colnames(articles_emotions_pap)<-c("Dokument", "Rok", "Miesiac", "Dzien", "Emocje", "Liczba", "Data" )
+grouped_emotions_pap<-articles_emotions_pap%>%
   group_by(Emocje, Data)%>%
   summarise(Liczba = sum(Liczba))
 
-ggplot(nowe, aes(fill=Emocje, y=Liczba, x=Data)) + 
+ile_kiedy<-grouped_emotions_pap%>%
+  group_by(Data)%>%
+  summarise(c=sum(Liczba))
+
+ggplot(grouped_emotions_pap, aes(fill=Emocje, y=Liczba, x=Data)) + 
   geom_bar(position="stack", stat="identity")+
-  scale_fill_manual(values=c("#222E50", "#BAA898", "#848586", "#C2847A", "#280003"))+
+  scale_fill_manual(values=c("#3d538f", "#BAA898", "#848586", "#C2847A", "#0d0f06"))+
+  #scale_fill_manual(values=c("#141204", "#253c78", "#e5a9a9", "#8cabbe", "#6a7b76"))+
   scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
-  geom_text(data=subset(nowe, Emocje!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
-  theme(legend.position = "bottom")
+  #geom_text(data=subset(grouped_emotions_pap, Emocje!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
+  theme(legend.position = "bottom")+
+  facet_wrap(~Emocje, ncol=1)
 
 
-list<-as_tidy_pap%>%
+only_parties<-as_tidy_pap%>%
   filter(term %in% c("pis", "ko", "sld", "psl", "konf"))
 
-partie<-inner_join(list%>%select(document, term),
-                   oceny_pap,
+articles_parties_pap<-inner_join(only_parties%>%select(document, term),
+                   emotions_pap,
                    by = c("document" = "document"))
 
-emocje_partie<-partie%>%
+emotions_parties_pap<-articles_parties_pap%>%
   group_by(term, category)%>%
   summarise(Liczba = sum(n))
 
-ggplot(emocje_partie, aes(fill=category, y=Liczba, x=term)) + 
+ggplot(emotions_parties_pap, aes(fill=category, y=Liczba, x=term)) + 
   geom_bar(position="stack", stat="identity")+
   scale_fill_manual(values=c("#222E50", "#BAA898", "#848586", "#C2847A", "#280003"))+
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
-  geom_text(data=subset(emocje_partie, category!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
+  geom_text(data=subset(emotions_parties_pap, category!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
   theme(legend.position = "bottom")
 
 par(mfrow=c(2,3))
 
-ko<-emocje_partie%>%filter(term=="ko")
+#---
+ko_pap<-emotions_parties_pap%>%filter(term=="ko")
 
-radar_ko <- as.data.frame(t(matrix(ko$Liczba)))
-colnames(radar_ko) <- ko$category
+ko_pap<-ko_pap%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
 
-radar_ko <- rbind(rep(250, 5) , rep(0, 5) , radar_ko)
+radar_ko_pap <- as.data.frame(t(matrix(ko_pap$procent)))
+colnames(radar_ko_pap) <- ko_pap$category
 
-radarchart(radar_ko, axistype=1 , 
+radar_ko_pap <- rbind(rep(100, 5) , rep(0, 5) , radar_ko_pap)
+
+radarchart(radar_ko_pap, axistype=1 , 
            
            #custom polygon
            pcol="#0a122a" , pfcol="#0a122aCC" , plwd=4 , 
            
            #custom the grid
-           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(50,250,50), cglwd=0.8,
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
            
            #custom labels
            vlcex=1.2)
 legend("bottom", legend="ko",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
 
-pis<-emocje_partie%>%filter(term=="pis")
+#---
+pis_pap<-emotions_parties_pap%>%filter(term=="pis")
 
-radar_pis <- as.data.frame(t(matrix(pis$Liczba)))
-colnames(radar_pis) <- pis$category
+pis_pap<-pis_pap%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
 
-radar_pis <- rbind(rep(500, 5) , rep(0, 5) , radar_pis)
+radar_pis_pap <- as.data.frame(t(matrix(pis_pap$procent)))
+colnames(radar_pis_pap) <- pis_pap$category
 
-radarchart(radar_pis, axistype=1 , 
+radar_pis_pap <- rbind(rep(100, 5) , rep(0, 5) , radar_pis_pap)
+
+radarchart(radar_pis_pap, axistype=1 , 
            
            #custom polygon
            pcol="#574ae2" , pfcol="#574ae2CC" , plwd=4 , 
            
            #custom the grid
-           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(100,500,100), cglwd=0.8,
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
            
            #custom labels
            vlcex=1.2)
 legend("bottom", legend="pis",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
 
-sld<-emocje_partie%>%filter(term=="sld")
+#---
+sld_pap<-emotions_parties_pap%>%filter(term=="sld")
 
-radar_sld <- as.data.frame(t(matrix(sld$Liczba)))
-colnames(radar_sld) <- sld$category
+sld_pap<-sld_pap%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
 
-radar_sld <- rbind(rep(180, 5) , rep(0, 5) , radar_sld)
+radar_sld_pap <- as.data.frame(t(matrix(sld_pap$procent)))
+colnames(radar_sld_pap) <- sld_pap$category
 
-radarchart(radar_sld, axistype=1 , 
+radar_sld_pap <- rbind(rep(100, 5) , rep(0, 5) , radar_sld_pap)
+
+radarchart(radar_sld_pap, axistype=1 , 
            
            #custom polygon
            pcol="#f21b3f" , pfcol="#f21b3fCC" , plwd=4 , 
            
            #custom the grid
-           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(36,180,36), cglwd=0.8,
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
            
            #custom labels
            vlcex=1.2)
 legend("bottom", legend="sld",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
 
-konf<-emocje_partie%>%filter(term=="konf")
+#---
+konf_pap<-emotions_parties_pap%>%filter(term=="konf")
 
-radar_konf <- as.data.frame(t(matrix(konf$Liczba)))
-colnames(radar_konf) <- konf$category
+konf_pap<-konf_pap%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
 
-radar_konf <- rbind(rep(80, 5) , rep(0, 5) , radar_konf)
+radar_konf_pap <- as.data.frame(t(matrix(konf_pap$procent)))
+colnames(radar_konf_pap) <- konf_pap$category
 
-radarchart(radar_konf, axistype=1 , 
+radar_konf_pap <- rbind(rep(100, 5) , rep(0, 5) , radar_konf_pap)
+
+radarchart(radar_konf_pap, axistype=1 , 
            
            #custom polygon
            pcol="#f0a202" , pfcol="#f0a202CC" , plwd=4 , 
            
            #custom the grid
-           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(16,80,16), cglwd=0.8,
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
            
            #custom labels
            vlcex=1.2)
 legend("bottom", legend="konf",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
 
+#---
+psl_pap<-emotions_parties_pap%>%filter(term=="psl")
 
-psl<-emocje_partie%>%filter(term=="psl")
+psl_pap<-psl_pap%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
 
-radar_psl <- as.data.frame(t(matrix(psl$Liczba)))
-colnames(radar_psl) <- psl$category
+radar_psl_pap <- as.data.frame(t(matrix(psl_pap$procent)))
+colnames(radar_psl_pap) <- psl_pap$category
 
-radar_psl <- rbind(rep(160, 5) , rep(0, 5) , radar_psl)
+radar_psl_pap <- rbind(rep(100, 5) , rep(0, 5) , radar_psl_pap)
 
-radarchart(radar_psl, axistype=1 , 
+radarchart(radar_psl_pap, axistype=1 , 
            
            #custom polygon
            pcol="#6da34d" , pfcol="#6da34dCC" , plwd=4 , 
            
            #custom the grid
-           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(32,160,32), cglwd=0.8,
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
            
            #custom labels
            vlcex=1.2)
@@ -595,6 +630,18 @@ legend("bottom", legend="psl",
 ######################################################################################
 #--DODATKI-----------------------------------------------------------------
 ######################################################################################
+all_sources<-rbind(all_emotions_pap, all_emotions_gazeta, all_emotions_tvn, all_emotions_polsat, all_emotions_interia)
+colnames(all_sources)<-c("Emocje", "Liczba", "Źródło")
+
+# Grouped
+ggplot(all_sources, aes(fill=Emocje, y=Liczba, x=Źródło)) + 
+  geom_bar(position="dodge", stat="identity")+
+  scale_fill_manual(values=c("#3d538f", "#BAA898", "#848586", "#C2847A", "#0d0f06"))+
+  theme(legend.position = "bottom")+
+  geom_text(aes(label=Liczba), position=position_dodge(width=0.9), vjust=-0.25)
+
+
+
 install.packages("Compositional")
 install.packages("MCMCpack")
 
@@ -608,16 +655,16 @@ draws_4 <- rdirichlet(200, c(5, 5, 5))
 par(mfrow=c(2,2))
 bivt.contour(draws_1)
 legend("topleft", legend=expression(paste(alpha, "=(0.1, 0.1, 0.1)")),
-       cex=1.1, bg="transparent", box.lty=0)
+       cex=1.5, bg="transparent", box.lty=0)
 bivt.contour(draws_2)
 legend("topleft", legend=expression(paste(alpha, "=(0.5, 0.5, 0.5)")),
-       cex=1.1, bg="transparent", box.lty=0)
+       cex=1.5, bg="transparent", box.lty=0)
 bivt.contour(draws_3)
 legend("topleft", legend=expression(paste(alpha, "=(1, 1, 1)")),
-       cex=1.1, bg="transparent", box.lty=0)
+       cex=1.5, bg="transparent", box.lty=0)
 bivt.contour(draws_4)
 legend("topleft", legend=expression(paste(alpha, "=(5, 5, 5)")),
-      cex=1.1, bg="transparent", box.lty=0)
+      cex=1.5, bg="transparent", box.lty=0)
 
 #####
 
@@ -628,6 +675,7 @@ ramka<-data.frame("Źródło" = rep(c("PAP", "gazeta.pl", "TVN24", "Polsat News"
 ggplot(ramka, aes(fill=Nazwa, y=Liczba, x=Źródło)) + 
   geom_bar(position="stack", stat="identity")+
   scale_fill_grey(start=0.6, end=0.1)+
+  theme(legend.position = "bottom")+
   geom_text(data=subset(ramka, Liczba != 0), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")
 
 
@@ -657,3 +705,142 @@ legend(x=0.7, y=1, legend = rownames(calosc_partie[-c(1,2),]), bty = "n", pch=20
 ########################################################################
 ########################################################################
 ########################################################################
+install.packages("LDAvis")
+install.packages("packcircles")
+library(LDAvis)
+
+# Libraries
+library(packcircles)
+library(ggplot2)
+
+# Create data
+data_1 <- data.frame(group=paste("Group", letters[1:20]), value=sample(seq(1,100),20)) 
+data_2<-data.frame(group=head(ap_top_terms_pap$term, 10), value=head(ap_top_terms_pap$beta, 10))
+
+# Generate the layout. This function return a dataframe with one line per bubble. 
+# It gives its center (x and y) and its radius, proportional of the value
+packing <- circleProgressiveLayout(data_2$value, sizetype='area')
+
+# We can add these packing information to the initial data frame
+data_2 <- cbind(data_2, packing)
+
+# Check that radius is proportional to value. We don't want a linear relationship, since it is the AREA that must be proportionnal to the value
+# plot(data$radius, data$value)
+
+# The next step is to go from one center + a radius to the coordinates of a circle that
+# is drawn by a multitude of straight lines.
+dat.gg <- circleLayoutVertices(packing, npoints=60)
+
+par(mfrow=c(3,3))
+# Make the plot
+ggplot() + 
+  # Make the bubbles
+  geom_polygon(data = dat.gg, aes(x, y, group = id, fill=as.factor(id)), colour = "black", alpha = 0.6) +
+  
+  # Add text in the center of each bubble + control its size
+  geom_text(data = data_2, aes(x, y, size=4, label = group)) +
+  scale_size_continuous(range = c(1,6)) +
+  
+  # General theme:
+  theme_void() + 
+  theme(legend.position="none") +
+  coord_equal()
+
+
+install.packages("ggraph")
+install.packages("igraph")
+library(ggraph)
+library(igraph)
+library(dplyr)
+
+
+df <- data.frame(group=head(ap_top_terms_pap$topic, 20),    
+                 subitem=head(ap_top_terms_pap$term, 20), 
+                 size=head(ap_top_terms_pap$beta, 20))
+
+# create a dataframe with the vertices' attributes
+
+vertices <- df %>% 
+  distinct(subitem, size) %>% 
+  add_row(subitem = "root", size = 0)
+
+graph <- graph_from_data_frame(df, vertices = vertices)
+
+ggraph(graph, layout = "circlepack", weight = size) + 
+  geom_node_circle(aes(fill =depth)) +
+  # adding geom_text to see which circle is which node 
+  geom_text(aes(x = x, y = y, label = paste(name, "size=", size))) +
+  coord_fixed()
+
+install.packages("voronoiTreemap")
+library(voronoiTreemap)
+gdp_json <- vt_export_json(vt_input_from_df(df))
+vt_d3(df, color_border = "#000000", size_border = "2px", legend = TRUE)
+
+
+library(viridis)
+
+# We need a data frame giving a hierarchical structure. Let's consider the flare dataset:
+edges <- flare$edges
+vertices <- flare$vertices
+mygraph <- graph_from_data_frame( edges, vertices=vertices )
+
+# Control the size of each circle: (use the size column of the vertices data frame)
+ggraph(mygraph, layout = 'circlepack', weight=size) + 
+  geom_node_circle() +
+  theme_void()
+
+ds<-flare
+
+install.packages("ggfittext")
+library(ggfittext)
+
+ggplot(ap_top_terms_pap, aes(x = topic, y = beta, label = term,
+                    fill = term)) +
+  geom_col(position = "stack") 
+  #geom_bar_text(position = "stack", grow = TRUE, reflow = TRUE)
+
+install.packages("wordcloud2")
+library(wordcloud2)
+library(wordcloud)
+library(ggwordcloud)
+wordcloud2(data = demoFreq)
+chmurka<-ap_top_terms_pap[, -c(1)]
+
+par(mfrow=c(1,4)) # for 1 row, 2 cols
+
+wordcloud2(data=head(chmurka, 10))
+wordcloud(words=head(chmurka$term, 10), freq = head(chmurka$beta, 10), alpha=0.9, scale=c(2, .2), 
+          random.color = FALSE, colors= c("indianred1","indianred2","indianred3","indianred"))
+
+ap_top_terms_pap_a <- ap_top_terms_pap %>%
+  mutate(angle = 45 * sample(-2:2, n(), replace = TRUE, prob = c(1, 1, 4, 1, 1)))
+
+require(gridExtra)
+plots <- ap_top_terms_pap %>% 
+  group_by(topic) %>%
+  do(plot= {
+    p <- ggplot(., aes(label = term, size = beta)) +
+      geom_text_wordcloud_area(area_corr_power = 0.5) +
+      scale_size_area(max_size = 10) +
+      theme_minimal()+
+      ggtitle(paste("Temat", .$topic))
+    p
+  })
+plots$plot[[1]]
+
+n <- length(plots)
+do.call("grid.arrange", c(plots$plot, ncol=4, as.table = FALSE))
+
+
+head(ap_top_terms_pap,40) %>%
+  group_by(topic) %>%
+  arrange(desc(beta)) %>%
+  mutate(rank = 1:n()) %>%
+  ggplot() +
+  geom_text(aes(topic, rank,
+                label = term,
+                size = 11-rank),
+            show.legend = FALSE) +
+  scale_y_reverse() +
+  theme(line = element_blank(), axis.text.y = element_blank())
