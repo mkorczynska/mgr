@@ -479,10 +479,8 @@ ile_kiedy<-grouped_emotions_pap%>%
 ggplot(grouped_emotions_pap, aes(fill=Emocje, y=Liczba, x=Data)) + 
   geom_bar(position="stack", stat="identity")+
   scale_fill_manual(values=c("#3d538f", "#BAA898", "#848586", "#C2847A", "#0d0f06"))+
-  #scale_fill_manual(values=c("#141204", "#253c78", "#e5a9a9", "#8cabbe", "#6a7b76"))+
   scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
-  #geom_text(data=subset(grouped_emotions_pap, Emocje!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
   theme(legend.position = "bottom")+
   facet_wrap(~Emocje, ncol=1)
 
@@ -519,14 +517,8 @@ colnames(radar_ko_pap) <- ko_pap$category
 radar_ko_pap <- rbind(rep(100, 5) , rep(0, 5) , radar_ko_pap)
 
 radarchart(radar_ko_pap, axistype=1 , 
-           
-           #custom polygon
            pcol="#0a122a" , pfcol="#0a122aCC" , plwd=4 , 
-           
-           #custom the grid
            cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
-           
-           #custom labels
            vlcex=1.2)
 legend("bottom", legend="ko",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
@@ -543,14 +535,8 @@ colnames(radar_pis_pap) <- pis_pap$category
 radar_pis_pap <- rbind(rep(100, 5) , rep(0, 5) , radar_pis_pap)
 
 radarchart(radar_pis_pap, axistype=1 , 
-           
-           #custom polygon
            pcol="#574ae2" , pfcol="#574ae2CC" , plwd=4 , 
-           
-           #custom the grid
            cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
-           
-           #custom labels
            vlcex=1.2)
 legend("bottom", legend="pis",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
@@ -567,14 +553,8 @@ colnames(radar_sld_pap) <- sld_pap$category
 radar_sld_pap <- rbind(rep(100, 5) , rep(0, 5) , radar_sld_pap)
 
 radarchart(radar_sld_pap, axistype=1 , 
-           
-           #custom polygon
            pcol="#f21b3f" , pfcol="#f21b3fCC" , plwd=4 , 
-           
-           #custom the grid
            cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
-           
-           #custom labels
            vlcex=1.2)
 legend("bottom", legend="sld",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
@@ -591,14 +571,8 @@ colnames(radar_konf_pap) <- konf_pap$category
 radar_konf_pap <- rbind(rep(100, 5) , rep(0, 5) , radar_konf_pap)
 
 radarchart(radar_konf_pap, axistype=1 , 
-           
-           #custom polygon
            pcol="#f0a202" , pfcol="#f0a202CC" , plwd=4 , 
-           
-           #custom the grid
            cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
-           
-           #custom labels
            vlcex=1.2)
 legend("bottom", legend="konf",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
@@ -615,14 +589,8 @@ colnames(radar_psl_pap) <- psl_pap$category
 radar_psl_pap <- rbind(rep(100, 5) , rep(0, 5) , radar_psl_pap)
 
 radarchart(radar_psl_pap, axistype=1 , 
-           
-           #custom polygon
            pcol="#6da34d" , pfcol="#6da34dCC" , plwd=4 , 
-           
-           #custom the grid
            cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
-           
-           #custom labels
            vlcex=1.2)
 legend("bottom", legend="psl",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
@@ -666,8 +634,6 @@ bivt.contour(draws_4)
 legend("topleft", legend=expression(paste(alpha, "=(5, 5, 5)")),
       cex=1.5, bg="transparent", box.lty=0)
 
-#####
-
 ramka<-data.frame("Źródło" = rep(c("PAP", "gazeta.pl", "TVN24", "Polsat News", "Interia"), each=3), 
                   "Nazwa" = rep(c("Pełna", "Skrót", "Obie"), 5), 
                   "Liczba"=c(0,38,4,1,4,4,1,64,10,0,21,2,1,60,14))
@@ -679,7 +645,9 @@ ggplot(ramka, aes(fill=Nazwa, y=Liczba, x=Źródło)) +
   geom_text(data=subset(ramka, Liczba != 0), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")
 
 
-
+######################################################################################
+#--KONIEC-----------------------------------------------------------------------------
+######################################################################################
 ####TO PONIZEJ NIE######KONIEC TEGO CO OK###
 calosc_partie<-rbind(radar_ko[3,], radar_konf[3,], radar_pis[3,], radar_psl[3,], radar_sld[3,])
 rownames(calosc_partie) <- c("ko", "konf", "pis", "psl","sld")

@@ -478,8 +478,11 @@ ggplot(grouped_emotions_gazeta, aes(fill=Emocje, y=Liczba, x=Data)) +
   scale_fill_manual(values=c("#3d538f", "#BAA898", "#848586", "#C2847A", "#0d0f06"))+
   scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
-  #geom_text(data=subset(grouped_emotions_gazeta, Emocje!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
   theme(legend.position = "bottom")
+
+ile_kiedy_gazeta<-grouped_emotions_gazeta%>%
+  group_by(Data)%>%
+  summarise(c=sum(Liczba))
 
 
 only_parties<-as_tidy_gazeta%>%
@@ -514,14 +517,8 @@ colnames(radar_ko_gazeta) <- ko_gazeta$category
 radar_ko_gazeta <- rbind(rep(100, 5) , rep(0, 5) , radar_ko_gazeta)
 
 radarchart(radar_ko_gazeta, axistype=1 , 
-           
-           #custom polygon
            pcol="#0a122a" , pfcol="#0a122aCC" , plwd=4 , 
-           
-           #custom the grid
            cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
-           
-           #custom labels
            vlcex=1.2)
 legend("bottom", legend="ko",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
@@ -538,14 +535,8 @@ colnames(radar_pis_gazeta) <- pis_gazeta$category
 radar_pis_gazeta <- rbind(rep(100, 5) , rep(0, 5) , radar_pis_gazeta)
 
 radarchart(radar_pis_gazeta, axistype=1 , 
-           
-           #custom polygon
            pcol="#574ae2" , pfcol="#574ae2CC" , plwd=4 , 
-           
-           #custom the grid
            cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
-           
-           #custom labels
            vlcex=1.2)
 legend("bottom", legend="pis",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
@@ -562,14 +553,8 @@ colnames(radar_sld_gazeta) <- sld_gazeta$category
 radar_sld_gazeta <- rbind(rep(100, 5) , rep(0, 5) , radar_sld_gazeta)
 
 radarchart(radar_sld_gazeta, axistype=1 , 
-           
-           #custom polygon
            pcol="#f21b3f" , pfcol="#f21b3fCC" , plwd=4 , 
-           
-           #custom the grid
            cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
-           
-           #custom labels
            vlcex=1.2)
 legend("bottom", legend="sld",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
@@ -586,14 +571,8 @@ colnames(radar_konf_gazeta) <- konf_gazeta$category
 radar_konf_gazeta <- rbind(rep(100, 5) , rep(0, 5) , radar_konf_gazeta)
 
 radarchart(radar_konf_gazeta, axistype=1 , 
-           
-           #custom polygon
            pcol="#f0a202" , pfcol="#f0a202CC" , plwd=4 , 
-           
-           #custom the grid
            cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
-           
-           #custom labels
            vlcex=1.2)
 legend("bottom", legend="konf",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
@@ -610,14 +589,8 @@ colnames(radar_psl_gazeta) <- psl_gazeta$category
 radar_psl_gazeta <- rbind(rep(100, 5) , rep(0, 5) , radar_psl_gazeta)
 
 radarchart(radar_psl_gazeta, axistype=1 , 
-           
-           #custom polygon
            pcol="#6da34d" , pfcol="#6da34dCC" , plwd=4 , 
-           
-           #custom the grid
            cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
-           
-           #custom labels
            vlcex=1.2)
 legend("bottom", legend="psl",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)

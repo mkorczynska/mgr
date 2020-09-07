@@ -485,7 +485,7 @@ grouped_emotions_interia<-articles_emotions_interia%>%
 
 ggplot(grouped_emotions_interia, aes(fill=Emocje, y=Liczba, x=Data)) + 
   geom_bar(position="stack", stat="identity")+
-  scale_fill_manual(values=c("#474747", "#fff570", "#bbcde5", "#40588c", "#b094b3"))+
+  scale_fill_manual(values=c("#3d538f", "#BAA898", "#848586", "#C2847A", "#0d0f06"))+
   scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
   #geom_text(data=subset(grouped_emotions_interia, Emocje!=""), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")+
@@ -512,32 +512,40 @@ ggplot(emotions_parties_interia, aes(fill=category, y=Liczba, x=term)) +
 
 par(mfrow=c(2,3))
 
+#---
 ko_interia<-emotions_parties_interia%>%filter(term=="ko")
 
-radar_ko_interia <- as.data.frame(t(matrix(ko_interia$Liczba)))
+ko_interia<-ko_interia%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_ko_interia <- as.data.frame(t(matrix(ko_interia$procent)))
 colnames(radar_ko_interia) <- ko_interia$category
 
-radar_ko_interia <- rbind(rep(1260, 5) , rep(0, 5) , radar_ko_interia)
+radar_ko_interia <- rbind(rep(100, 5) , rep(0, 5) , radar_ko_interia)
 
-radarchart(radar_ko_interia, axistype=1, 
+radarchart(radar_ko_interia, axistype=1 , 
            
            #custom polygon
            pcol="#0a122a" , pfcol="#0a122aCC" , plwd=4 , 
            
            #custom the grid
-           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(0,1260, 315), cglwd=1,
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
            
            #custom labels
            vlcex=1.2)
 legend("bottom", legend="ko",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
 
+#---
 pis_interia<-emotions_parties_interia%>%filter(term=="pis")
 
-radar_pis_interia <- as.data.frame(t(matrix(pis_interia$Liczba)))
+pis_interia<-pis_interia%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_pis_interia <- as.data.frame(t(matrix(pis_interia$procent)))
 colnames(radar_pis_interia) <- pis_interia$category
 
-radar_pis_interia <- rbind(rep(2120, 5) , rep(0, 5) , radar_pis_interia)
+radar_pis_interia <- rbind(rep(100, 5) , rep(0, 5) , radar_pis_interia)
 
 radarchart(radar_pis_interia, axistype=1 , 
            
@@ -545,19 +553,23 @@ radarchart(radar_pis_interia, axistype=1 ,
            pcol="#574ae2" , pfcol="#574ae2CC" , plwd=4 , 
            
            #custom the grid
-           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(0,2120,530), cglwd=0.8,
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
            
            #custom labels
            vlcex=1.2)
 legend("bottom", legend="pis",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
 
+#---
 sld_interia<-emotions_parties_interia%>%filter(term=="sld")
 
-radar_sld_interia <- as.data.frame(t(matrix(sld_interia$Liczba)))
+sld_interia<-sld_interia%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_sld_interia <- as.data.frame(t(matrix(sld_interia$procent)))
 colnames(radar_sld_interia) <- sld_interia$category
 
-radar_sld_interia <- rbind(rep(620, 5) , rep(0, 5) , radar_sld_interia)
+radar_sld_interia <- rbind(rep(100, 5) , rep(0, 5) , radar_sld_interia)
 
 radarchart(radar_sld_interia, axistype=1 , 
            
@@ -565,19 +577,23 @@ radarchart(radar_sld_interia, axistype=1 ,
            pcol="#f21b3f" , pfcol="#f21b3fCC" , plwd=4 , 
            
            #custom the grid
-           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(0,620,155), cglwd=0.8,
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
            
            #custom labels
            vlcex=1.2)
 legend("bottom", legend="sld",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
 
+#---
 konf_interia<-emotions_parties_interia%>%filter(term=="konf")
 
-radar_konf_interia <- as.data.frame(t(matrix(konf_interia$Liczba)))
+konf_interia<-konf_interia%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_konf_interia <- as.data.frame(t(matrix(konf_interia$procent)))
 colnames(radar_konf_interia) <- konf_interia$category
 
-radar_konf_interia <- rbind(rep(340, 5) , rep(0, 5) , radar_konf_interia)
+radar_konf_interia <- rbind(rep(100, 5) , rep(0, 5) , radar_konf_interia)
 
 radarchart(radar_konf_interia, axistype=1 , 
            
@@ -585,20 +601,23 @@ radarchart(radar_konf_interia, axistype=1 ,
            pcol="#f0a202" , pfcol="#f0a202CC" , plwd=4 , 
            
            #custom the grid
-           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(0,340,85), cglwd=0.8,
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
            
            #custom labels
            vlcex=1.2)
 legend("bottom", legend="konf",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
 
-
+#---
 psl_interia<-emotions_parties_interia%>%filter(term=="psl")
 
-radar_psl_interia <- as.data.frame(t(matrix(psl_interia$Liczba)))
+psl_interia<-psl_interia%>%
+  mutate(procent=Liczba/sum(Liczba)*100)
+
+radar_psl_interia <- as.data.frame(t(matrix(psl_interia$procent)))
 colnames(radar_psl_interia) <- psl_interia$category
 
-radar_psl_interia <- rbind(rep(600, 5) , rep(0, 5) , radar_psl_interia)
+radar_psl_interia <- rbind(rep(100, 5) , rep(0, 5) , radar_psl_interia)
 
 radarchart(radar_psl_interia, axistype=1 , 
            
@@ -606,7 +625,7 @@ radarchart(radar_psl_interia, axistype=1 ,
            pcol="#6da34d" , pfcol="#6da34dCC" , plwd=4 , 
            
            #custom the grid
-           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=seq(0,600,150), cglwd=0.8,
+           cglcol="black", cglty=1, axislabcol="#280003", caxislabels=paste(seq(0,100,25), "%"), cglwd=0.8,
            
            #custom labels
            vlcex=1.2)
