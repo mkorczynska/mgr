@@ -338,15 +338,12 @@ body_words %>%
   ungroup() %>%
   rename(n_words = n) %>%
   left_join(articles_per_day, by = c("year" = "year", "month" = "month", "day"="day")) %>%
-  # przeskalowanie danych o liczbie słów
   mutate(n_words_plot = n_words) %>%
   mutate(date = make_date(year, month, day)) %>%
   ggplot() +
-  # bar = liczba tesktów
   geom_bar(data = articles_per_day, aes(make_date(year, month, day), n_arts),
            stat="identity",
            fill = "gray80") +
-  # line = liczba słów
   geom_point(aes(date, n_words_plot, color = word_s, shape=word_s), size = 4) +
   theme(legend.position = "bottom")
 
@@ -425,7 +422,7 @@ assignments_gazeta<-augment(lda_gazeta, dtm_gazeta)
 #--ANALIZA SENTYMENTU-----------------------------------------------------------------
 ######################################################################################
 
-pl_words_sentiment <- read_csv("pl_words.csv")
+#pl_words_sentiment <- read_csv("pl_words.csv")
 pl_words_sentiment <- read_csv("nawl-analysis.csv")
 
 as_tidy_gazeta <- tidy(dtm_gazeta)
@@ -447,13 +444,11 @@ emotions_gazeta<-text_words_sentiment_gazeta %>%
                               .$category == "D" ~ "Wstręt",
                               .$category == "F" ~ "Strach"))
 
-
 all_emotions_gazeta<-emotions_gazeta%>%
   group_by(category)%>%
   summarise(sum=sum(n))
 
 all_emotions_gazeta$zrodlo<-rep("gazeta.pl", 5)
-
 
 nr_gazeta<-as.data.frame(seq(1:nrow(articles_gazeta)))
 colnames(nr_gazeta)<-c("nr")
@@ -484,7 +479,6 @@ ile_kiedy_gazeta<-grouped_emotions_gazeta%>%
   group_by(Data)%>%
   summarise(c=sum(Liczba))
 
-
 only_parties<-as_tidy_gazeta%>%
   filter(term %in% c("pis", "ko", "sld", "psl", "konf"))
 
@@ -505,7 +499,7 @@ ggplot(emotions_parties_gazeta, aes(fill=category, y=Liczba, x=term)) +
 
 par(mfrow=c(2,3))
 
-#---
+#---RADARY
 ko_gazeta<-emotions_parties_gazeta%>%filter(term=="ko")
 
 ko_gazeta<-ko_gazeta%>%
@@ -594,7 +588,3 @@ radarchart(radar_psl_gazeta, axistype=1 ,
            vlcex=1.2)
 legend("bottom", legend="psl",
        cex=1.2, bg="transparent", box.lty=0, text.font=2)
-
-######################################################################################
-#--DODATKI-----------------------------------------------------------------
-######################################################################################

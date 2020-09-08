@@ -337,14 +337,11 @@ body_words %>%
   ungroup() %>%
   rename(n_words = n) %>%
   left_join(articles_per_day, by = c("year" = "year", "month" = "month", "day"="day")) %>%
-  # przeskalowanie danych o liczbie słów
   mutate(n_words_plot = n_words) %>%
   mutate(date = make_date(year, month, day)) %>%
   ggplot() +
-  # bar = liczba tesktów
   geom_bar(data = articles_per_day, aes(make_date(year, month, day), n_arts),
            stat="identity") +
-  # line = liczba słów
   geom_point(aes(date, n_words_plot, color = word_s, shape=word_s), size = 4) +
   theme(legend.position = "bottom")
 
@@ -424,7 +421,7 @@ assignments_pap<-augment(lda_pap, dtm_pap)
 #--ANALIZA SENTYMENTU-----------------------------------------------------------------
 ######################################################################################
 
-pl_words_sentiment <- read_csv("pl_words.csv")
+#pl_words_sentiment <- read_csv("pl_words.csv")
 pl_words_sentiment <- read_csv("nawl-analysis.csv")
 
 as_tidy_pap <- tidy(dtm_pap)
@@ -446,13 +443,11 @@ emotions_pap<-text_words_sentiment_pap %>%
                               .$category == "D" ~ "Wstręt",
                               .$category == "F" ~ "Strach"))
 
-
 all_emotions_pap<-emotions_pap%>%
   group_by(category)%>%
   summarise(sum=sum(n))
 
 all_emotions_pap$zrodlo<-rep("PAP", 5)
-
 
 nr_pap<-as.data.frame(seq(1:nrow(articles_pap)))
 colnames(nr_pap)<-c("nr")
@@ -470,20 +465,20 @@ articles_emotions_pap<-articles_emotions_pap%>%
 colnames(articles_emotions_pap)<-c("Dokument", "Rok", "Miesiac", "Dzien", "Emocje", "Liczba", "Data" )
 grouped_emotions_pap<-articles_emotions_pap%>%
   group_by(Emocje, Data)%>%
-  summarise(Liczba = sum(Liczba))
+  summarise(Liczba = sum(Liczba))%>%
+  group_by(Data)%>%
+  mutate(p = 100*Liczba/sum(Liczba))
 
 ile_kiedy<-grouped_emotions_pap%>%
   group_by(Data)%>%
   summarise(c=sum(Liczba))
 
-ggplot(grouped_emotions_pap, aes(fill=Emocje, y=Liczba, x=Data)) + 
+ggplot(grouped_emotions_pap, aes(fill=Emocje, y=p, x=Data)) + 
   geom_bar(position="stack", stat="identity")+
   scale_fill_manual(values=c("#3d538f", "#BAA898", "#848586", "#C2847A", "#0d0f06"))+
   scale_x_date(date_breaks = "5 days", date_labels = "%d.%m.%Y") +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))+
-  theme(legend.position = "bottom")+
-  facet_wrap(~Emocje, ncol=1)
-
+  theme(legend.position = "bottom")
 
 only_parties<-as_tidy_pap%>%
   filter(term %in% c("pis", "ko", "sld", "psl", "konf"))
@@ -504,8 +499,7 @@ ggplot(emotions_parties_pap, aes(fill=category, y=Liczba, x=term)) +
   theme(legend.position = "bottom")
 
 par(mfrow=c(2,3))
-
-#---
+#---RADARY
 ko_pap<-emotions_parties_pap%>%filter(term=="ko")
 
 ko_pap<-ko_pap%>%
@@ -601,14 +595,11 @@ legend("bottom", legend="psl",
 all_sources<-rbind(all_emotions_pap, all_emotions_gazeta, all_emotions_tvn, all_emotions_polsat, all_emotions_interia)
 colnames(all_sources)<-c("Emocje", "Liczba", "Źródło")
 
-# Grouped
 ggplot(all_sources, aes(fill=Emocje, y=Liczba, x=Źródło)) + 
   geom_bar(position="dodge", stat="identity")+
   scale_fill_manual(values=c("#3d538f", "#BAA898", "#848586", "#C2847A", "#0d0f06"))+
   theme(legend.position = "bottom")+
   geom_text(aes(label=Liczba), position=position_dodge(width=0.9), vjust=-0.25)
-
-
 
 install.packages("Compositional")
 install.packages("MCMCpack")
@@ -643,172 +634,3 @@ ggplot(ramka, aes(fill=Nazwa, y=Liczba, x=Źródło)) +
   scale_fill_grey(start=0.6, end=0.1)+
   theme(legend.position = "bottom")+
   geom_text(data=subset(ramka, Liczba != 0), aes(label = Liczba), position = position_stack(vjust = 0.5), colour = "white")
-
-
-######################################################################################
-#--KONIEC-----------------------------------------------------------------------------
-######################################################################################
-####TO PONIZEJ NIE######KONIEC TEGO CO OK###
-calosc_partie<-rbind(radar_ko[3,], radar_konf[3,], radar_pis[3,], radar_psl[3,], radar_sld[3,])
-rownames(calosc_partie) <- c("ko", "konf", "pis", "psl","sld")
-calosc_partie <- rbind(rep(500,5) , rep(0,5) , calosc_partie)
-
-# Color vector
-colors_border=c("#0a122a", "#574ae2", "#f21b3f", "#f0a202", "#6da34d")
-colors_in=c("#0a122aCC", "#574ae2CC", "#f21b3fCC", "#f0a202CC", "#6da34dCC")
-
-# plot with default options:
-radarchart(calosc_partie  , axistype=1 , 
-            #custom polygon
-            pcol=colors_border , pfcol=colors_in , plwd=4 , plty=1,
-            #custom the grid
-            cglcol="grey", cglty=1, axislabcol="grey", caxislabels=seq(0,500,100), cglwd=0.8,
-            #custom labels
-            vlcex=0.8 
-)
-
-# Add a legend
-legend(x=0.7, y=1, legend = rownames(calosc_partie[-c(1,2),]), bty = "n", pch=20 , col=colors_in , text.col = "grey", cex=1.2, pt.cex=3)
-
-########################################################################
-########################################################################
-########################################################################
-install.packages("LDAvis")
-install.packages("packcircles")
-library(LDAvis)
-
-# Libraries
-library(packcircles)
-library(ggplot2)
-
-# Create data
-data_1 <- data.frame(group=paste("Group", letters[1:20]), value=sample(seq(1,100),20)) 
-data_2<-data.frame(group=head(ap_top_terms_pap$term, 10), value=head(ap_top_terms_pap$beta, 10))
-
-# Generate the layout. This function return a dataframe with one line per bubble. 
-# It gives its center (x and y) and its radius, proportional of the value
-packing <- circleProgressiveLayout(data_2$value, sizetype='area')
-
-# We can add these packing information to the initial data frame
-data_2 <- cbind(data_2, packing)
-
-# Check that radius is proportional to value. We don't want a linear relationship, since it is the AREA that must be proportionnal to the value
-# plot(data$radius, data$value)
-
-# The next step is to go from one center + a radius to the coordinates of a circle that
-# is drawn by a multitude of straight lines.
-dat.gg <- circleLayoutVertices(packing, npoints=60)
-
-par(mfrow=c(3,3))
-# Make the plot
-ggplot() + 
-  # Make the bubbles
-  geom_polygon(data = dat.gg, aes(x, y, group = id, fill=as.factor(id)), colour = "black", alpha = 0.6) +
-  
-  # Add text in the center of each bubble + control its size
-  geom_text(data = data_2, aes(x, y, size=4, label = group)) +
-  scale_size_continuous(range = c(1,6)) +
-  
-  # General theme:
-  theme_void() + 
-  theme(legend.position="none") +
-  coord_equal()
-
-
-install.packages("ggraph")
-install.packages("igraph")
-library(ggraph)
-library(igraph)
-library(dplyr)
-
-
-df <- data.frame(group=head(ap_top_terms_pap$topic, 20),    
-                 subitem=head(ap_top_terms_pap$term, 20), 
-                 size=head(ap_top_terms_pap$beta, 20))
-
-# create a dataframe with the vertices' attributes
-
-vertices <- df %>% 
-  distinct(subitem, size) %>% 
-  add_row(subitem = "root", size = 0)
-
-graph <- graph_from_data_frame(df, vertices = vertices)
-
-ggraph(graph, layout = "circlepack", weight = size) + 
-  geom_node_circle(aes(fill =depth)) +
-  # adding geom_text to see which circle is which node 
-  geom_text(aes(x = x, y = y, label = paste(name, "size=", size))) +
-  coord_fixed()
-
-install.packages("voronoiTreemap")
-library(voronoiTreemap)
-gdp_json <- vt_export_json(vt_input_from_df(df))
-vt_d3(df, color_border = "#000000", size_border = "2px", legend = TRUE)
-
-
-library(viridis)
-
-# We need a data frame giving a hierarchical structure. Let's consider the flare dataset:
-edges <- flare$edges
-vertices <- flare$vertices
-mygraph <- graph_from_data_frame( edges, vertices=vertices )
-
-# Control the size of each circle: (use the size column of the vertices data frame)
-ggraph(mygraph, layout = 'circlepack', weight=size) + 
-  geom_node_circle() +
-  theme_void()
-
-ds<-flare
-
-install.packages("ggfittext")
-library(ggfittext)
-
-ggplot(ap_top_terms_pap, aes(x = topic, y = beta, label = term,
-                    fill = term)) +
-  geom_col(position = "stack") 
-  #geom_bar_text(position = "stack", grow = TRUE, reflow = TRUE)
-
-install.packages("wordcloud2")
-library(wordcloud2)
-library(wordcloud)
-library(ggwordcloud)
-wordcloud2(data = demoFreq)
-chmurka<-ap_top_terms_pap[, -c(1)]
-
-par(mfrow=c(1,4)) # for 1 row, 2 cols
-
-wordcloud2(data=head(chmurka, 10))
-wordcloud(words=head(chmurka$term, 10), freq = head(chmurka$beta, 10), alpha=0.9, scale=c(2, .2), 
-          random.color = FALSE, colors= c("indianred1","indianred2","indianred3","indianred"))
-
-ap_top_terms_pap_a <- ap_top_terms_pap %>%
-  mutate(angle = 45 * sample(-2:2, n(), replace = TRUE, prob = c(1, 1, 4, 1, 1)))
-
-require(gridExtra)
-plots <- ap_top_terms_pap %>% 
-  group_by(topic) %>%
-  do(plot= {
-    p <- ggplot(., aes(label = term, size = beta)) +
-      geom_text_wordcloud_area(area_corr_power = 0.5) +
-      scale_size_area(max_size = 10) +
-      theme_minimal()+
-      ggtitle(paste("Temat", .$topic))
-    p
-  })
-plots$plot[[1]]
-
-n <- length(plots)
-do.call("grid.arrange", c(plots$plot, ncol=4, as.table = FALSE))
-
-
-head(ap_top_terms_pap,40) %>%
-  group_by(topic) %>%
-  arrange(desc(beta)) %>%
-  mutate(rank = 1:n()) %>%
-  ggplot() +
-  geom_text(aes(topic, rank,
-                label = term,
-                size = 11-rank),
-            show.legend = FALSE) +
-  scale_y_reverse() +
-  theme(line = element_blank(), axis.text.y = element_blank())
